@@ -1,7 +1,10 @@
+# testing continuous control with cartlataccel
+import argparse
 import numpy as np
-from mcts import MCTS, State
 import gymnasium as gym
 import gym_cartlataccel
+from mcts import MCTS, State
+import torch
 
 class CartState(State):
   def __init__(self, pos, vel, target):
@@ -20,6 +23,9 @@ class CartState(State):
   @classmethod
   def from_array(cls, array):
     return cls(array[0], array[1], array[2])
+  
+  def to_tensor(self, device='cuda'):
+    return torch.FloatTensor([self.pos, self.vel, self.target]).to(device)
   
   def generate(self, action):
     # cartlataccel env.py
@@ -42,26 +48,30 @@ class CartState(State):
   def sample_action(self):
     return np.random.uniform(-10.0, 10.0) # max_u
 
-if __name__ == "__main__": 
-  env = gym.make("CartLatAccel-v0", render_mode="human")
-  mcts = MCTS(exploration_weight=2.0, gamma=0.99, k=2, alpha=0.3)
-  
-  max_steps = 500
-  search_depth = 10
-  n_sims = 100
+def run_mcts(env, max_steps, search_depth, n_sims):
+  # MCTS online planner. Simulates n_sims for each state and chooses the best action
+  mcts = MCTS()
   
   state, _ = env.reset()
   total_reward = 0
   for step in range(max_steps):
     s = CartState.from_array(state[0])
-    for _ in range(n_sims):
-      mcts.simulate(s, search_depth)
-    action = mcts.get_best_action(s)
+    action, _ = mcts.get_action(s, search_depth, n_sims, deterministic=True)
     next_state, reward, terminated, truncated, _ = env.step(np.array([[action]])) # env expects batched
     total_reward += reward[0]
     state = next_state
     if truncated:
       break
-
   print(f"reward: {total_reward}")
-  env.close()
+  return total_reward
+
+if __name__ == "__main__": 
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--noise_mode", type=str, default="None")
+  parser.add_argument("--search_depth", type=int, default=10)
+  parser.add_argument("--n_sims", type=int, default=100)
+  args = parser.parse_args()
+
+  env = gym.make("CartLatAccel-v0", render_mode="human", noise_mode=args.noise_mode)
+  max_steps = 200 # sim steps
+  run_mcts(env, max_steps, args.search_depth, args.n_sims)
