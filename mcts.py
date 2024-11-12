@@ -4,6 +4,32 @@ import numpy as np
 from abc import ABC, abstractmethod
 from collections import defaultdict
 
+class State(ABC):
+  @abstractmethod
+  def __hash__(self): # required for MCTS dictionary
+    pass
+
+  @abstractmethod
+  def __eq__(self, other):
+    pass
+
+  @classmethod
+  @abstractmethod
+  def from_array(cls, array):
+    pass
+
+  @abstractmethod
+  def generate(self, action):
+    """Generate next state and reward given action. (internal step() in gym.)
+    Returns: (next_state, reward)
+    """
+    pass
+
+  @abstractmethod
+  def sample_action(self):
+    """Sample random action to take from this state"""
+    pass
+
 class MCTS:
   def __init__(self, exploration_weight=1e-3, gamma=0.99, k=1, alpha=0.5, d=10, n_sims=100):
     self.gamma = gamma
@@ -39,7 +65,8 @@ class MCTS:
     m = self.k * self.Ns[s] ** self.alpha # progressive widening
     if s not in self.children or len(self.children[s]) < m:
       a = s.sample_action()
-      self.children[s].append(a)
+      if a not in self.children[s]:
+        self.children[s].append(a)
     else:
       a = self.puct_select(s)                             # selection
     next_state, r = s.generate(a)                         # expansion
@@ -49,37 +76,23 @@ class MCTS:
     self.Ns[s] += 1
     return q
 
-  def get_action(self, s, d=10, n=100, temp=1, deterministic=False):
-    """Gets action by sampling from normalized visit counts. Returns action and pi_tree, prob dist over visit counts"""
-    for _ in range(n):
-      self.simulate(s, d)
-    visit_counts = np.array([self.N[(s,a)] for a in self.children[s]])
-    probs = visit_counts ** (1/temp) / (visit_counts ** (1/temp)).sum()
+  def get_policy(self, s: State, temp=1):
+    actions = self.children[s]
+    visit_counts = np.array([self.N[(s,a)] for a in actions])
     # print(visit_counts)
-    action = max(self.children[s], key=lambda a: self.Q[(s,a)]) if deterministic else np.random.choice(self.children[s], p=probs)
-    return action, probs
+    norm_counts = visit_counts ** (1/temp) / (visit_counts ** (1/temp)).sum()
+    return actions, norm_counts
 
-class State(ABC):
-  @abstractmethod
-  def __hash__(self):
-    """Make state hashable for MCTS dictionaries"""
-    pass
-  @abstractmethod
-  def __eq__(self, other):
-    """Required for dictionary operations"""
-    pass
-  @classmethod
-  @abstractmethod
-  def from_array(cls, array):
-    """Create state from numpy array"""
-    pass
-  @abstractmethod
-  def generate(self, action):
-    """Generate next state and reward given action
-    Returns: (next_state, reward)
-    """
-    pass
-  @abstractmethod
-  def sample_action(self):
-    """Sample random action to take from this state"""
-    pass
+  def get_action(self, s: State, d=10, n=100, deterministic=False):
+    for _ in range(n):  # search
+      self.simulate(s, d)
+    actions, norm_counts = self.get_policy(s)
+    
+    if deterministic:
+      best_idx = np.argmax(norm_counts)
+      # print(actions, actions[best_idx], norm_counts, norm_counts[best_idx])
+      return actions[best_idx], norm_counts[best_idx]
+    else:
+      # sample from distribution
+      sampled_idx = np.random.choice(len(actions), p=norm_counts)
+      return actions[sampled_idx], norm_counts[sampled_idx]
