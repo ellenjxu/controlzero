@@ -72,6 +72,7 @@ class A0C:
       returns[t] = rewards[t] + self.gamma*(1-dones[t]) *next_value  # TODO: don't estimate for now
       next_value = returns[t]
       # print(returns.flatten())
+    print('rewards', rewards, 'returns', returns)
     return returns
   
   def evaluate_cost(self, states, returns, logprobs, probs): # probs = pi_tree (normalized counts)
