@@ -1,0 +1,13 @@
+<html><body>
+<h1>PPO vs MCTS Comparison Report</h1>
+<pre>{'task': 'CartLatAccel-v0', 'max_evals': 1000, 'ppo_hidden_sizes': {'pi': [32], 'vf': [32]}, 'n_runs': 3, 'mcts_simulations': 100, 'env_bs': 1000, 'noise_mode': None, 'search_depth': 10, 'out_dir': 'out/comparison_report'}</pre>
+<h2>Performance Comparison</h2>
+<iframe src="comparison.html" width="100%" height="800"></iframe>
+<h2>Summary Statistics</h2>
+<pre>
+PPO Final Rewards (mean ± std): -0.17 ± 0.04
+MCTS Final Reward: -0.14 ± 0.03
+PPO Average Runtime: 0.19s ± 0.21s
+MCTS Average Runtime: 6.73s ± 0.44s
+</pre>
+</body></html>

@@ -90,7 +90,6 @@ class MCTS:
     
     if deterministic:
       best_idx = np.argmax(norm_counts)
-      # print(actions, actions[best_idx], norm_counts, norm_counts[best_idx])
       return actions[best_idx], norm_counts[best_idx]
     else:
       # sample from distribution

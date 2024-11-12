@@ -43,13 +43,13 @@ class AlphaZero(MCTS):
     return self.Q[(state,action)] + self.exploration_weight * math.exp(logprob) * math.sqrt(self.Ns[state])/(self.N[(state,action)]+1)
 
 class A0C:
-  def __init__(self, env, model, lr=3e-4, gamma=0.99, lam=0.99, clip_range=0.2, epochs=1, n_steps=30, ent_coeff=0.01, bs=30, env_bs=1, device='cpu', debug=False):
+  def __init__(self, env, model, lr=3e-4, gamma=0.9, clip_range=0.2, epochs=1, n_steps=30, ent_coeff=0.01, bs=30, env_bs=1, device='cpu', debug=False):
   # def __init__(self, env, model, lr=3e-4, gamma=0.99, lam=0.99, clip_range=0.2, epochs=10, n_steps=2048, ent_coeff=0.001, bs=64, env_bs=1, device='cpu', debug=False):
     self.env = env
     self.env_bs = env_bs
     self.model = model.to(device)
     self.gamma = gamma
-    self.lam = lam
+    # self.lam = lam
     self.clip_range = clip_range
     self.epochs = epochs
     self.n_steps = n_steps
@@ -68,8 +68,10 @@ class A0C:
     returns = np.zeros_like(rewards)
     for t in reversed(range(len(rewards))):
     # if done, then return reward. Otherwise estimate future reward
-      returns[t] = rewards[t] + self.gamma*(1-dones[t])*next_value 
+      # print(next_value)
+      returns[t] = rewards[t] + self.gamma*(1-dones[t]) *next_value  # TODO: don't estimate for now
       next_value = returns[t]
+      # print(returns.flatten())
     return returns
   
   def evaluate_cost(self, states, returns, logprobs, probs): # probs = pi_tree (normalized counts)
@@ -89,9 +91,12 @@ class A0C:
     for _ in range(max_steps):
       # select best action based on MCTS
       s = CartState.from_array(state[0])
-      best_action, _ = model.get_action(s) # get single action and prob
+      best_action, _ = model.get_action(s, deterministic=True) # get single action and prob
       action, prob_dist = model.get_policy(s) # MCTS policy over all children actions
       next_state, reward, terminated, truncated, info = env.step(np.array([[best_action]]))
+      # print('state', state)
+      # print('action', action, 'best_action', best_action, 'prob_dist', prob_dist)
+      # print('reward', reward)
       states.append(state)
       actions.append(action)
       rewards.append(reward)
@@ -126,6 +131,7 @@ class A0C:
         logprobs_tensor, _ = self.model.actor.get_logprob(state_tensor, action_tensor)
       returns = self.compute_return(np.array(rewards), np.array(dones), next_value)
       gae_time = time.perf_counter()-start
+      break
 
       # add to buffer
       start = time.perf_counter()

@@ -56,8 +56,9 @@ def run_mcts(env, max_steps, search_depth, n_sims):
   total_reward = 0
   for step in range(max_steps):
     s = CartState.from_array(state[0])
-    action, _ = mcts.get_action(s, search_depth, n_sims, deterministic=True)
+    action, _ = mcts.get_action(s, search_depth, n_sims, deterministic=False)
     next_state, reward, terminated, truncated, _ = env.step(np.array([[action]])) # env expects batched
+    # print(state, action, reward)
     total_reward += reward[0]
     state = next_state
     if truncated:
