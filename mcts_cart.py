@@ -73,6 +73,6 @@ if __name__ == "__main__":
   parser.add_argument("--n_sims", type=int, default=100)
   args = parser.parse_args()
 
-  env = gym.make("CartLatAccel-v0", render_mode="human", noise_mode=args.noise_mode)
+  env = gym.make("CartLatAccel-v1", render_mode="human", noise_mode=args.noise_mode)
   max_steps = 200 # sim steps
   run_mcts(env, max_steps, args.search_depth, args.n_sims)

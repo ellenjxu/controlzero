@@ -55,7 +55,7 @@ class A0C:
     self.n_steps = n_steps
     self.ent_coeff = ent_coeff
     self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
-    self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=10000, device=device), batch_size=bs) # TODO: 100K
+    self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=100000, device=device), batch_size=bs)
     self.bs = bs
     self.hist = []
     self.start = time.time()
@@ -68,19 +68,20 @@ class A0C:
     returns = np.zeros_like(rewards)
     for t in reversed(range(len(rewards))):
     # if done, then return reward. Otherwise estimate future reward
-      # print(next_value)
-      returns[t] = rewards[t] + self.gamma*(1-dones[t]) *next_value  # TODO: don't estimate for now
+      returns[t] = rewards[t] + self.gamma*(1-dones[t]) * next_value
       next_value = returns[t]
       # print(returns.flatten())
-    print('rewards', rewards, 'returns', returns)
+    # print('rewards', rewards.flatten(), 'returns', returns.flatten())
     return returns
   
-  def evaluate_cost(self, states, returns, logprobs, probs): # probs = pi_tree (normalized counts)
+  def evaluate_cost(self, states, returns, logprobs, mcts_probs):
     V = self.model.critic(states).squeeze()
     value_loss = nn.MSELoss()(V, returns)
+    # print(logprobs, mcts_probs)
+    # print(mcts_probs.shape, logprobs.shape)
+    
     # A0C policy loss uses REINFORCE trick to move distribution closer to normalized visit counts
-    # print(probs.shape, logprobs.shape)
-    policy_loss = torch.sum(-probs * logprobs, dim=1).mean() # both probs and logprobs are (s,m) where m is the number of actions
+    policy_loss = torch.sum(-mcts_probs * logprobs, dim=1).mean() # both mcts_probs and logprobs are (s,m) where m is the number of actions
     l2_loss = sum(torch.norm(param) for param in self.model.parameters())
     return {"policy": policy_loss, "value": value_loss, "l2": l2_loss}
     
@@ -132,7 +133,6 @@ class A0C:
         logprobs_tensor, _ = self.model.actor.get_logprob(state_tensor, action_tensor)
       returns = self.compute_return(np.array(rewards), np.array(dones), next_value)
       gae_time = time.perf_counter()-start
-      break
 
       # add to buffer
       start = time.perf_counter()
@@ -149,30 +149,31 @@ class A0C:
       )
       self.replay_buffer.extend(episode_dict)
       buffer_time = time.perf_counter() - start
+      # print(episode_dict)
 
       # update
-      start = time.perf_counter()
-      for _ in range(self.epochs):
-        for i, batch in enumerate(self.replay_buffer): # randomly sample a batch from buffer
-          costs = self.evaluate_cost(
-            batch['states'], 
-            # batch['actions'],
-            batch['returns'],
-            # batch['advantages'],
-            batch['logprobs'],
-            batch['probs']
-          )
-          loss = 100*costs["policy"] + 1*costs["value"] + 1e-4 * costs["l2"] # highway change paper used (100,1,1e-4)
-          self.optimizer.zero_grad()
-          loss.backward()
-          self.optimizer.step()
-          break
-      self.replay_buffer.empty() # clear buffer
+      if len(self.replay_buffer) > self.bs:
+        start = time.perf_counter()
+        for _ in range(self.epochs):
+          n_batches = len(self.replay_buffer) // self.bs
+          for _ in range(min(n_batches, 5)):  # TODO: 5 batches per epoch
+            batch = self.replay_buffer.sample()
+            costs = self.evaluate_cost(
+              batch['states'],
+              batch['returns'],
+              batch['logprobs'],
+              batch['probs']
+            )
+            loss = costs["policy"] + 0.5*costs["value"] + 1e-4 * costs["l2"] # TODO: highway change paper used (100,1,1e-4)
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+      
       update_time = time.perf_counter() - start
 
       # debug info
       if self.debug:
-        print(f"policy loss {costs['policy'].item():.3f} value loss {costs['value'].item():.3f} mean action {np.mean(abs(np.array(actions)))}")
+        # print(f"policy loss {costs['policy'].item():.3f} value loss {costs['value'].item():.3f} mean action {np.mean(abs(np.array(actions)))}")
         print(f"Runtimes: rollout {rollout_time:.3f}, gae {gae_time:.3f}, buffer {buffer_time:.3f}, update {update_time:.3f}")
 
       eps += self.env_bs
@@ -189,14 +190,14 @@ class A0C:
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument("--max_evals", type=int, default=30000)
-  parser.add_argument("--env_bs", type=int, default=1000)
+  parser.add_argument("--env_bs", type=int, default=1) # TODO: only works with 1 for now, since MCTS is not batched
   parser.add_argument("--save_model", default=False)
   parser.add_argument("--noise_mode", default=None)
   parser.add_argument("--debug", default=True)
   args = parser.parse_args()
 
   print(f"training a0c with max_evals {args.max_evals}") 
-  env = gym.make("CartLatAccel-v0", noise_mode=args.noise_mode, env_bs=args.env_bs)
+  env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=args.env_bs)
   model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1], act_bound=(-10, 10))
   a0c = A0C(env, model, env_bs=args.env_bs, debug=args.debug)
   best_model, hist = a0c.train(args.max_evals)
