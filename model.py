@@ -94,6 +94,7 @@ class MLPBeta(nn.Module):
     alpha, beta = self.get_policy(obs)
     dist = torch.distributions.Beta(alpha, beta)
     logprob = dist.log_prob(act)
+    assert logprob.shape == act.shape
     entropy = dist.entropy()
     return logprob.sum(dim=-1), entropy.sum(dim=-1)
 
