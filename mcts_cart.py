@@ -55,11 +55,11 @@ def run_mcts(env, max_steps, search_depth, n_sims):
   state, _ = env.reset()
   total_reward = 0
   for step in range(max_steps):
-    s = CartState.from_array(state[0])
+    s = CartState.from_array(state)
     action, _ = mcts.get_action(s, search_depth, n_sims, deterministic=False)
-    next_state, reward, terminated, truncated, _ = env.step(np.array([[action]])) # env expects batched
+    next_state, reward, terminated, truncated, _ = env.step(np.array([action])) # env expects batched
     # print(state, action, reward)
-    total_reward += reward[0]
+    total_reward += reward
     state = next_state
     if truncated:
       break
@@ -71,8 +71,14 @@ if __name__ == "__main__":
   parser.add_argument("--noise_mode", type=str, default="None")
   parser.add_argument("--search_depth", type=int, default=10)
   parser.add_argument("--n_sims", type=int, default=100)
+  parser.add_argument("--render", type=str, default="human")
   args = parser.parse_args()
 
-  env = gym.make("CartLatAccel-v1", render_mode="human", noise_mode=args.noise_mode)
+  env = gym.make("CartLatAccel-v1", render_mode=args.render, noise_mode=args.noise_mode)
   max_steps = 200 # sim steps
+  
+  import time
+  start = time.time()
   run_mcts(env, max_steps, args.search_depth, args.n_sims)
+  end = time.time()
+  print(f"total time: {end-start}")

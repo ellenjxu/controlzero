@@ -93,18 +93,14 @@ class MLPBeta(nn.Module):
     num_actions = act.shape[-1]
     unscaled_act = (act - self.act_bound[0]) / (self.act_bound[1] - self.act_bound[0])  
     alpha, beta = self.get_policy(obs)
-    alpha = alpha.expand(-1, num_actions) # (bs, num_actions)
-    beta = beta.expand(-1, num_actions)
+    # alpha = alpha.expand(-1, num_actions) # (bs, num_actions)
+    # beta = beta.expand(-1, num_actions)
     # print('alpha', alpha.shape, 'beta', beta.shape)
     dist = torch.distributions.Beta(alpha, beta)
     logprob = dist.log_prob(unscaled_act)
     assert logprob.shape == act.shape
     entropy = dist.entropy()
     return logprob, entropy.sum(dim=-1)
-
-        # beta_dist = GeneralizedBeta(alpha, beta, self.action_bound)
-        # log_probs = beta_dist.log_prob(actions)
-        # entropy = -log_probs.mean(dim=-1)
 
 class MLPCritic(nn.Module):
   def __init__(self, obs_dim: int, hidden_sizes: list[int], activation: nn.Module = nn.Tanh) -> None:
