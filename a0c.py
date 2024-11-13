@@ -43,12 +43,13 @@ class AlphaZero(MCTS):
     return self.Q[(state,action)] + self.exploration_weight * math.exp(logprob) * math.sqrt(self.Ns[state])/(self.N[(state,action)]+1)
 
 class A0C:
-  def __init__(self, env, model, lr=3e-4, gamma=0.9, clip_range=0.2, epochs=1, n_steps=30, ent_coeff=0.01, bs=30, env_bs=1, device='cpu', debug=False):
-  # def __init__(self, env, model, lr=3e-4, gamma=0.99, lam=0.99, clip_range=0.2, epochs=10, n_steps=2048, ent_coeff=0.001, bs=64, env_bs=1, device='cpu', debug=False):
+  def __init__(self, env, model, lr=3e-4, gamma=0.9, tau=1,clip_range=0.2, epochs=1, n_steps=30, ent_coeff=0.01, bs=30, env_bs=1, device='cpu', debug=False):
+  # def __init__(self, env, model, lr=3e-4, gamma=0.99, tau=1.0, clip_range=0.2, epochs=10, n_steps=2048, ent_coeff=0.001, bs=64, env_bs=1, device='cpu', debug=False):
     self.env = env
     self.env_bs = env_bs
     self.model = model.to(device)
     self.gamma = gamma
+    self.tau = tau
     # self.lam = lam
     self.clip_range = clip_range
     self.epochs = epochs
@@ -79,9 +80,10 @@ class A0C:
     value_loss = nn.MSELoss()(V, returns)
     # print(logprobs, mcts_probs)
     # print(mcts_probs.shape, logprobs.shape)
-    
+
     # A0C policy loss uses REINFORCE trick to move distribution closer to normalized visit counts
-    policy_loss = torch.sum(-mcts_probs * logprobs, dim=1).mean() # both mcts_probs and logprobs are (s,m) where m is the number of actions
+    policy_loss = -torch.sum(mcts_probs * logprobs, dim=1).mean() # both mcts_probs and logprobs are (s,m) where m is the number of actions
+    
     l2_loss = sum(torch.norm(param) for param in self.model.parameters())
     return {"policy": policy_loss, "value": value_loss, "l2": l2_loss}
     
@@ -92,7 +94,7 @@ class A0C:
 
     for _ in range(max_steps):
       # select best action based on MCTS
-      s = CartState.from_array(state[0])
+      s = CartState.from_array(state)
       best_action, _ = model.get_action(s, deterministic=True) # get single action and prob
       action, prob_dist = model.get_policy(s) # MCTS policy over all children actions
       next_state, reward, terminated, truncated, info = env.step(np.array([[best_action]]))
@@ -128,8 +130,8 @@ class A0C:
         state_tensor = torch.FloatTensor(np.array(states)).to(self.device)
         next_state_tensor = torch.FloatTensor(next_state).to(self.device)
         next_value = self.model.critic(next_state_tensor).cpu().numpy().squeeze()
-        action_tensor = torch.FloatTensor(np.array(actions)).unsqueeze(-1).to(self.device)
-        # print("action_tensor", action_tensor.shape)
+        action_tensor = torch.FloatTensor(np.array(actions)).to(self.device)
+        # print("state_tensor", state_tensor.shape, "action_tensor", action_tensor.shape)
         logprobs_tensor, _ = self.model.actor.get_logprob(state_tensor, action_tensor)
       returns = self.compute_return(np.array(rewards), np.array(dones), next_value)
       gae_time = time.perf_counter()-start
@@ -152,8 +154,8 @@ class A0C:
       # print(episode_dict)
 
       # update
+      start = time.perf_counter()
       if len(self.replay_buffer) > self.bs:
-        start = time.perf_counter()
         for _ in range(self.epochs):
           n_batches = len(self.replay_buffer) // self.bs
           for _ in range(min(n_batches, 5)):  # TODO: 5 batches per epoch
@@ -168,13 +170,11 @@ class A0C:
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-      
-      update_time = time.perf_counter() - start
-
-      # debug info
-      if self.debug:
-        # print(f"policy loss {costs['policy'].item():.3f} value loss {costs['value'].item():.3f} mean action {np.mean(abs(np.array(actions)))}")
-        print(f"Runtimes: rollout {rollout_time:.3f}, gae {gae_time:.3f}, buffer {buffer_time:.3f}, update {update_time:.3f}")
+        # debug info
+        update_time = time.perf_counter() - start
+        if self.debug:
+          print(f"policy loss {costs['policy'].item():.3f} value loss {costs['value'].item():.3f} mean action {np.mean(abs(np.array(actions)))}")
+          print(f"Runtimes: rollout {rollout_time:.3f}, gae {gae_time:.3f}, buffer {buffer_time:.3f}, update {update_time:.3f}")
 
       eps += self.env_bs
       avg_reward = np.sum(rewards)/self.env_bs

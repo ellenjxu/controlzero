@@ -76,11 +76,11 @@ class MCTS:
     self.Ns[s] += 1
     return q
 
-  def get_policy(self, s: State, temp=1):
+  def get_policy(self, s: State):
     actions = self.children[s]
     visit_counts = np.array([self.N[(s,a)] for a in actions])
     # print(visit_counts)
-    norm_counts = visit_counts ** (1/temp) / (visit_counts ** (1/temp)).sum()
+    norm_counts = visit_counts / visit_counts.sum()
     return actions, norm_counts
 
   def get_action(self, s: State, d=10, n=100, deterministic=False):
