@@ -29,7 +29,7 @@ class CartState(State):
   
   def generate(self, action):
     # cartlataccel env.py
-    force_mag = 10.0
+    force_mag = 50.0
     tau = 0.02
     max_x = 10.0
     max_episode_steps = 500
@@ -46,7 +46,7 @@ class CartState(State):
     return next_state, reward
   
   def sample_action(self):
-    return np.random.uniform(-10.0, 10.0) # max_u
+    return np.random.uniform(-1, 1) # max_u
 
 def run_mcts(env, max_steps, search_depth, n_sims):
   # MCTS online planner. Simulates n_sims for each state and chooses the best action

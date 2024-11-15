@@ -149,7 +149,7 @@ if __name__ == "__main__":
 
   print(f"training ppo with max_evals {args.max_evals}") 
   env = gym.make("CartLatAccel-v0", noise_mode=args.noise_mode, env_bs=args.env_bs)
-  model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1], shared_layers=True, act_bound=(-10, 10))
+  model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1], shared_layers=True, act_bound=(-1, 1))
   ppo = PPO(env, model, env_bs=args.env_bs)
   best_model, hist = ppo.train(args.max_evals)
 
