@@ -35,6 +35,7 @@ class CartState(State):
     max_episode_steps = 500
     
     new_a = action * force_mag
+    new_a = np.clip(new_a, -1, 1)
     new_x = 0.5 * new_a * tau**2 + self.vel * tau + self.pos
     new_x = np.clip(new_x, -max_x, max_x)
     new_v = new_a * tau + self.vel

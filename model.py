@@ -49,6 +49,7 @@ class MLPGaussian(nn.Module):
   
   def get_policy(self, obs: torch.Tensor) -> torch.Tensor:
     mean = self.forward(obs)
+    mean = torch.tanh(mean)
     std = self.log_std.exp()
     return mean, std
 
