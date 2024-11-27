@@ -1,4 +1,7 @@
-# testing continuous control with cartlataccel
+"""
+MCTS online planner on cartlataccel. Simulates n_sims for each state and chooses the best action
+"""
+
 import argparse
 import numpy as np
 import gymnasium as gym
@@ -24,7 +27,7 @@ class CartState(State):
   def from_array(cls, array):
     return cls(array[0], array[1], array[2])
   
-  def to_tensor(self, device='cuda'):
+  def to_tensor(self, device='cpu'):
     return torch.FloatTensor([self.pos, self.vel, self.target]).to(device)
   
   def generate(self, action):
@@ -34,8 +37,8 @@ class CartState(State):
     max_x = 10.0
     max_episode_steps = 500
     
+    action = np.clip(action, -1, 1)
     new_a = action * force_mag
-    new_a = np.clip(new_a, -1, 1)
     new_x = 0.5 * new_a * tau**2 + self.vel * tau + self.pos
     new_x = np.clip(new_x, -max_x, max_x)
     new_v = new_a * tau + self.vel
@@ -49,11 +52,8 @@ class CartState(State):
   def sample_action(self):
     return np.random.uniform(-1, 1) # max_u
 
-def run_mcts(env, max_steps, search_depth, n_sims):
-  # MCTS online planner. Simulates n_sims for each state and chooses the best action
-  mcts = MCTS()
-  
-  state, _ = env.reset()
+def run_mcts(mcts, env, max_steps, search_depth, n_sims, seed=42):
+  state, _ = env.reset(seed=seed)
   total_reward = 0
   for step in range(max_steps):
     s = CartState.from_array(state)
@@ -73,13 +73,14 @@ if __name__ == "__main__":
   parser.add_argument("--search_depth", type=int, default=10)
   parser.add_argument("--n_sims", type=int, default=100)
   parser.add_argument("--render", type=str, default="human")
+  parser.add_argument("--seed", type=int, default=42)
   args = parser.parse_args()
 
   env = gym.make("CartLatAccel-v1", render_mode=args.render, noise_mode=args.noise_mode)
-  max_steps = 200 # sim steps
   
   import time
   start = time.time()
-  run_mcts(env, max_steps, args.search_depth, args.n_sims)
+  mcts = MCTS()
+  run_mcts(mcts, env, max_steps=200, search_depth=args.search_depth, n_sims=args.n_sims, seed=args.seed)
   end = time.time()
   print(f"total time: {end-start}")
