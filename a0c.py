@@ -43,7 +43,7 @@ class AlphaZero(MCTS):
   #   return self.Q[(state,action)] + self.exploration_weight * math.exp(logprob) * math.sqrt(self.Ns[state])/(self.N[(state,action)]+1)
 
 class A0C:
-  def __init__(self, env, model, lr=3e-4, gamma=0.9, tau=1,clip_range=0.2, epochs=10, ent_coeff=0.01, env_bs=1, device='cpu', debug=False):
+  def __init__(self, env, model, lr=1e-1, gamma=0.9, tau=1,clip_range=0.2, epochs=10, ent_coeff=0.01, env_bs=1, device='cpu', debug=False):
     self.env = env
     self.env_bs = env_bs
     self.model = model.to(device)
@@ -137,12 +137,12 @@ class A0C:
 
   def train(self, max_iters=1000, n_episodes=10, n_steps=30):
     for i in range(max_iters):
-      episode_rewards = []
+      # episode_rewards = []
       for _ in range(n_episodes):
         # collect data
         states, actions, rewards, dones, next_state, mcts_probs = self.rollout(self.env, self.mcts, n_steps, device=self.device)
         next_value, logprobs_tensor = self._get_value_and_logprob(states, actions, next_state, self.model, self.device)
-        episode_rewards.append(np.sum(rewards))
+        # episode_rewards.append(np.sum(rewards))
         
         # compute returns
         returns = self._compute_return(np.array(rewards))
@@ -161,7 +161,7 @@ class A0C:
 
       # update
       for _ in range(self.epochs):
-        batch = self.replay_buffer.sample(batch_size=30) # TODO: bs 30 with 10 epochs
+        batch = self.replay_buffer.sample(batch_size=n_steps*n_episodes) # TODO: taking entire batch of 300
         costs = self._evaluate_cost(batch['states'], batch['returns'], batch['logprobs'], batch['probs'])
         loss = costs["value"] # test value net convergence
         # loss = costs["policy"] + 0.5*costs["value"] + 1e-4 * costs["l2"]
@@ -170,18 +170,19 @@ class A0C:
         loss.backward()
         self.optimizer.step()
 
-      avg_reward = np.mean(episode_rewards)
+      # avg_reward = np.mean(episode_rewards)
       if self.debug:
-        print(f"actor loss {costs['policy'].item():.3f} value loss {costs['value'].item():.3f} mean action {np.mean(abs(np.array(actions)))}")
-      print(f"iter {i}, reward {avg_reward:.3f}, t {time.time()-self.start:.2f}")
-      self.hist.append((i, avg_reward))
+        # print(f"actor loss {costs['policy'].item():.3f} value loss {costs['value'].item():.3f} mean action {np.mean(abs(np.array(actions)))}")
+        print(f"value loss  {costs['value'].item():.3f}")
+      # print(f"iter {i}, reward {avg_reward:.3f}, t {time.time()-self.start:.2f}")
+      # self.hist.append((i, avg_reward))
 
     print(f"Total time: {time.time() - self.start}")
     return self.model.actor, self.hist
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
-  parser.add_argument("--max_iters", type=int, default=1000)
+  parser.add_argument("--max_iters", type=int, default=10)
   parser.add_argument("--n_eps", type=int, default=10)
   parser.add_argument("--n_steps", type=int, default=30)
   parser.add_argument("--env_bs", type=int, default=1) # TODO: batch
