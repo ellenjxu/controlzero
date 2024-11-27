@@ -43,7 +43,7 @@ class AlphaZero(MCTS):
   #   return self.Q[(state,action)] + self.exploration_weight * math.exp(logprob) * math.sqrt(self.Ns[state])/(self.N[(state,action)]+1)
 
 class A0C:
-  def __init__(self, env, model, lr=1e-3, gamma=0.9, tau=1,clip_range=0.2, epochs=10, ent_coeff=0.01, env_bs=1, device='cpu', debug=False):
+  def __init__(self, env, model, lr=3e-4, gamma=0.9, tau=1,clip_range=0.2, epochs=10, ent_coeff=0.01, env_bs=1, device='cpu', debug=False):
     self.env = env
     self.env_bs = env_bs
     self.model = model.to(device)
@@ -60,6 +60,7 @@ class A0C:
     self.device = device
     self.debug = debug
     self.mcts = AlphaZero(model, device=device)
+    # self.mcts = MCTS()
     self.running_stats = RunningStats()
 
   def _compute_return(self, rewards, dones, next_value):
@@ -67,23 +68,32 @@ class A0C:
     for t in reversed(range(len(rewards))):
       returns[t] = rewards[t] + self.gamma*(1-dones[t]) * next_value
       next_value = returns[t]
-    # TODO: normalize using running mean and std
+    return returns
+
+  def _normalize_return(self, returns):
     for r in returns:
       self.running_stats.push(r)
     self.mu = self.running_stats.mean()
     self.sigma = self.running_stats.standard_deviation()
+    print('mu', self.mu, 'sigma', self.sigma)
     normalized_returns = (returns - self.mu) / (self.sigma + 1e-8)
+
+    # update model
+    self.model.critic.mean = torch.tensor(self.mu, device=self.device) # update value net
+    self.model.critic.std = torch.tensor(self.sigma, device=self.device)
+
     return normalized_returns
-    # return returns
   
   def _evaluate_cost(self, states, returns, logprobs, mcts_probs):
     # when evaluating cost use normalized; unnorm only used in mcts search
     V = self.model.critic(states, normalize=True).squeeze()
     # V = self.model.critic(states).squeeze()
-    value_loss = nn.MSELoss()(V, returns)
+    # TODO: normalize using running mean and std
+    normalized_returns = self._normalize_return(returns)
+    value_loss = nn.MSELoss()(V, normalized_returns)
     if self.debug:
-      print(V[0], returns[0])
-      print(f"value range: {V.min():.3f} {V.max():.3f}, returns range: {returns.min():.3f} {returns.max():.3f}")
+      print(f"value {V[0]} return {normalized_returns[0]}")
+      print(f"value range: {V.min():.3f} {V.max():.3f}, returns range: {normalized_returns.min():.3f} {normalized_returns.max():.3f}")
     # print(logprobs, mcts_probs)
     # print(mcts_probs.shape, logprobs.shape)
 
@@ -137,13 +147,11 @@ class A0C:
         next_value, logprobs_tensor = self._get_value_and_logprob(states, actions, next_state, self.model, self.device)
         episode_rewards.append(np.sum(rewards))
         
-        # compute normalized returns
+        # compute returns
         returns = self._compute_return(np.array(rewards), np.array(dones), next_value)
         if self.debug:
-          print(returns.mean(), returns.std())
+          print(f"mean {returns.mean()} std {returns.std()}")
           print(f"returns range: {returns.min():.3f} {returns.max():.3f}")
-        self.model.critic.mean = torch.tensor(self.mu, device=self.device) # update value net
-        self.model.critic.std = torch.tensor(self.sigma, device=self.device)
         
         # add to replay buffer
         episode_dict = TensorDict(
