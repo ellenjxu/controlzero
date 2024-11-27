@@ -63,32 +63,29 @@ class A0C:
     # self.mcts = MCTS()
     self.running_stats = RunningStats()
 
-  def _compute_return(self, rewards, dones, next_value):
+  def _compute_return(self, rewards):
     returns = np.zeros_like(rewards)
+    next_value = 0
     for t in reversed(range(len(rewards))):
-      returns[t] = rewards[t] + self.gamma*(1-dones[t]) * next_value
+      returns[t] = rewards[t] + self.gamma * next_value
       next_value = returns[t]
     return returns
 
   def _normalize_return(self, returns):
     for r in returns:
       self.running_stats.push(r)
+
     self.mu = self.running_stats.mean()
     self.sigma = self.running_stats.standard_deviation()
-    print('mu', self.mu, 'sigma', self.sigma)
-    normalized_returns = (returns - self.mu) / (self.sigma + 1e-8)
-
-    # update model
     self.model.critic.mean = torch.tensor(self.mu, device=self.device) # update value net
     self.model.critic.std = torch.tensor(self.sigma, device=self.device)
 
+    normalized_returns = (returns - self.mu) / (self.sigma + 1e-8)
     return normalized_returns
   
   def _evaluate_cost(self, states, returns, logprobs, mcts_probs):
     # when evaluating cost use normalized; unnorm only used in mcts search
     V = self.model.critic(states, normalize=True).squeeze()
-    # V = self.model.critic(states).squeeze()
-    # TODO: normalize using running mean and std
     normalized_returns = self._normalize_return(returns)
     value_loss = nn.MSELoss()(V, normalized_returns)
     if self.debug:
@@ -148,10 +145,7 @@ class A0C:
         episode_rewards.append(np.sum(rewards))
         
         # compute returns
-        returns = self._compute_return(np.array(rewards), np.array(dones), next_value)
-        if self.debug:
-          print(f"mean {returns.mean()} std {returns.std()}")
-          print(f"returns range: {returns.min():.3f} {returns.max():.3f}")
+        returns = self._compute_return(np.array(rewards))
         
         # add to replay buffer
         episode_dict = TensorDict(

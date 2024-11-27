@@ -1,4 +1,5 @@
 import math
+import numpy as np
 
 # https://stackoverflow.com/a/17637351
 class RunningStats:
@@ -9,6 +10,9 @@ class RunningStats:
         self.new_m = 0
         self.old_s = 0
         self.new_s = 0
+
+        self.min = np.inf
+        self.max = -np.inf
 
     def clear(self):
         self.n = 0
@@ -25,6 +29,11 @@ class RunningStats:
 
             self.old_m = self.new_m
             self.old_s = self.new_s
+        
+        if x < self.min:
+            self.min = x
+        if x > self.max:
+            self.max = x
 
     def mean(self):
         return self.new_m if self.n else 0.0
