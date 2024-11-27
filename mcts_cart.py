@@ -45,19 +45,19 @@ class CartState(State):
     
     next_state = CartState(new_x, new_v, self.target)
     error = abs(new_x - self.target)
-    reward = -error/max_episode_steps
+    reward = -error/max_x
     
     return next_state, reward
   
   def sample_action(self):
     return np.random.uniform(-1, 1) # max_u
 
-def run_mcts(mcts, env, max_steps, search_depth, n_sims, seed=42):
+def run_mcts(mcts, env, max_steps, search_depth, n_sims, seed=42, deterministic=False):
   state, _ = env.reset(seed=seed)
   total_reward = 0
   for step in range(max_steps):
     s = CartState.from_array(state)
-    action, _ = mcts.get_action(s, search_depth, n_sims, deterministic=False)
+    action, _ = mcts.get_action(s, search_depth, n_sims, deterministic=deterministic)
     next_state, reward, terminated, truncated, _ = env.step(np.array([action])) # env expects batched
     # print(state, action, reward)
     total_reward += reward

@@ -57,7 +57,7 @@ class MCTS:
   def puct_select(self, s):
     return max(self.children[s], key=lambda a: self._puct(s, a))
 
-  def simulate(self, s, d=10):
+  def search(self, s, d=10):
     """Runs a MCTS simulation from state to depth d. Returns q, the value of the state"""
     if d <= 0:
       return self._value(s)
@@ -70,9 +70,9 @@ class MCTS:
     else:
       a = self.puct_select(s)                             # selection
     next_state, r = s.generate(a)                         # expansion
-    q = r + self.gamma * self.simulate(next_state, d-1)   # simulation
-    self.N[(s,a)] += 1                                   
-    self.Q[(s,a)] += (q-self.Q[(s,a)])/self.N[(s,a)]      # backpropagation
+    q = r + self.gamma * self.search(next_state, d-1)     # simulation
+    self.N[(s,a)] += 1                                    # backpropagation
+    self.Q[(s,a)] += (q-self.Q[(s,a)])/self.N[(s,a)]
     self.Ns[s] += 1
     return q
 
@@ -84,8 +84,8 @@ class MCTS:
     return actions, norm_counts
 
   def get_action(self, s: State, d=10, n=100, deterministic=False):
-    for _ in range(n):  # search
-      self.simulate(s, d)
+    for _ in range(n):
+      self.search(s, d)
     actions, norm_counts = self.get_policy(s)
     
     if deterministic:
