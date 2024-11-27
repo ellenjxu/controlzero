@@ -24,7 +24,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 class AlphaZero(MCTS):
   """AlphaZero Continuous. Uses NN to guide MCTS search."""
-  def __init__(self, model, exploration_weight=1, gamma=0.99, k=1, alpha=0.5, device='cpu'):
+  def __init__(self, model, exploration_weight=1e-3, gamma=0.99, k=1, alpha=0.5, device='cpu'):
     super().__init__(exploration_weight, gamma, k, alpha)
     self.model = model # f_theta(s) -> pi(s), V(s)
     self.device = device
@@ -43,13 +43,12 @@ class AlphaZero(MCTS):
   #   return self.Q[(state,action)] + self.exploration_weight * math.exp(logprob) * math.sqrt(self.Ns[state])/(self.N[(state,action)]+1)
 
 class A0C:
-  def __init__(self, env, model, lr=1e-1, gamma=0.9, tau=1,clip_range=0.2, epochs=10, ent_coeff=0.01, env_bs=1, device='cpu', debug=False):
+  def __init__(self, env, model, lr=1e-1, gamma=0.99, tau=1,clip_range=0.2, epochs=10, ent_coeff=0.01, env_bs=1, device='cpu', debug=False):
     self.env = env
     self.env_bs = env_bs
     self.model = model.to(device)
     self.gamma = gamma
     self.tau = tau
-    # self.lam = lam
     self.clip_range = clip_range
     self.epochs = epochs
     self.ent_coeff = ent_coeff
@@ -59,17 +58,27 @@ class A0C:
     self.start = time.time()
     self.device = device
     self.debug = debug
-    self.mcts = AlphaZero(model, device=device)
-    # self.mcts = MCTS()
+    # self.mcts = AlphaZero(model, device=device)
+    self.mcts = MCTS()
     self.running_stats = RunningStats()
 
-  def _compute_return(self, rewards):
-    returns = np.zeros_like(rewards)
-    next_value = 0
-    for t in reversed(range(len(rewards))):
-      returns[t] = rewards[t] + self.gamma * next_value
-      next_value = returns[t]
-    return returns
+  # def _compute_return(self, rewards):
+  #   returns = np.zeros_like(rewards)
+  #   next_value = 0
+  #   for t in reversed(range(len(rewards))):
+  #     returns[t] = rewards[t] + self.gamma * next_value
+  #     next_value = returns[t]
+  #   return returns
+
+  # A0C max_a Q version
+  def _compute_return(self, states):
+    returns = []
+    for state in states:
+      s = CartState.from_array(state)
+      q_values = [self.mcts.Q[(s,a)] for a in self.mcts.children[s]]
+      v_target = max(q_values) if q_values else 0
+      returns.append(v_target)
+    return np.array(returns)
 
   def _normalize_return(self, returns):
     for r in returns:
@@ -137,16 +146,15 @@ class A0C:
 
   def train(self, max_iters=1000, n_episodes=10, n_steps=30):
     for i in range(max_iters):
-      # episode_rewards = []
       for _ in range(n_episodes):
         # collect data
         states, actions, rewards, dones, next_state, mcts_probs = self.rollout(self.env, self.mcts, n_steps, device=self.device)
-        next_value, logprobs_tensor = self._get_value_and_logprob(states, actions, next_state, self.model, self.device)
-        # episode_rewards.append(np.sum(rewards))
+        _, logprobs_tensor = self._get_value_and_logprob(states, actions, next_state, self.model, self.device)
         
         # compute returns
-        returns = self._compute_return(np.array(rewards))
-        
+        # returns = self._compute_return(np.array(rewards))
+        returns = self._compute_return(np.array(states))
+
         # add to replay buffer
         episode_dict = TensorDict(
           {
