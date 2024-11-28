@@ -42,7 +42,7 @@ class AlphaZero(MCTS):
     return self.Q[(state,action)] + self.exploration_weight * math.exp(logprob) * math.sqrt(self.Ns[state])/(self.N[(state,action)]+1)
 
 class A0C:
-  def __init__(self, env, model, lr=1e-2, gamma=0.99, tau=1,clip_range=0.2, epochs=10, ent_coeff=0.01, env_bs=1, device='cpu', debug=False):
+  def __init__(self, env, model, lr=1e-1, gamma=0.99, tau=1,clip_range=0.2, epochs=10, ent_coeff=0.01, env_bs=1, device='cpu', debug=False):
     self.env = env
     self.env_bs = env_bs
     self.model = model.to(device)
@@ -57,8 +57,8 @@ class A0C:
     self.start = time.time()
     self.device = device
     self.debug = debug
-    self.mcts = AlphaZero(model, device=device)
-    # self.mcts = MCTS()
+    # self.mcts = AlphaZero(model, device=device)
+    self.mcts = MCTS()
     self.running_stats = RunningStats()
 
   # def _compute_return(self, rewards):
@@ -123,6 +123,7 @@ class A0C:
       error = logprobs - self.tau * logcounts # pos/neg tells you whether to push action up or down
     policy_loss = (error * logprobs).mean()
     # if self.debug:
+      # print(torch.exp(logcounts).sum(dim=-1)) # shape is the same as first dim of logcounts. make sure logcounts sum to 1
       # print(f"logprobs: {logprobs[0]}, logcounts: {logcounts[0]}, error: {error[0]}")
       # print(f"mean absolute error: {torch.mean(torch.abs(error))}")
       # print(f"std: {self.model.actor.log_std}")
@@ -219,7 +220,7 @@ if __name__ == "__main__":
 
   print(f"training a0c with max_iters {args.max_iters}") 
   env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=args.env_bs)
-  model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1]) #act_bound=(-1, 1))
+  model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1], act_bound=(-1, 1))
   a0c = A0C(env, model, env_bs=args.env_bs, debug=args.debug)
   best_model, hist = a0c.train(args.max_iters, args.n_eps, args.n_steps)
 
