@@ -2,3 +2,5 @@ __pycache__/
 *.ipynb
 out/
 *.pth
+*.pkl
+*.pt

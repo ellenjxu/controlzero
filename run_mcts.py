@@ -2,12 +2,12 @@
 MCTS online planner on cartlataccel. Simulates n_sims for each state and chooses the best action
 """
 
+import torch
 import argparse
 import numpy as np
 import gymnasium as gym
 import gym_cartlataccel
-from mcts import MCTS, State
-import torch
+from networks.mcts import MCTS, State
 
 class CartState(State):
   def __init__(self, pos, vel, target):
@@ -64,7 +64,6 @@ def run_mcts(mcts, env, max_steps, search_depth, n_sims, seed=42, deterministic=
     state = next_state
     if truncated:
       break
-  print(f"reward: {total_reward}")
   return total_reward
 
 if __name__ == "__main__": 
@@ -81,6 +80,7 @@ if __name__ == "__main__":
   import time
   start = time.time()
   mcts = MCTS()
-  run_mcts(mcts, env, max_steps=200, search_depth=args.search_depth, n_sims=args.n_sims, seed=args.seed)
+  reward = run_mcts(mcts, env, max_steps=200, search_depth=args.search_depth, n_sims=args.n_sims, seed=args.seed)
   end = time.time()
   print(f"total time: {end-start}")
+  print(f"reward: {reward}")

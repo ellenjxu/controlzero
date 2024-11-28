@@ -1,4 +1,4 @@
-# https://github.com/ellenjxu/tinygym
+# https://github.com/ellenjxu/tinygym/model.py
 import torch
 import numpy as np
 import torch.nn.functional as F
@@ -91,17 +91,13 @@ class MLPBeta(nn.Module):
     return scaled_action.detach().cpu().numpy().squeeze(-1)
 
   def get_logprob(self, obs: torch.Tensor, act: torch.Tensor):
-    num_actions = act.shape[-1]
     unscaled_act = (act - self.act_bound[0]) / (self.act_bound[1] - self.act_bound[0])  
     alpha, beta = self.get_policy(obs)
-    # alpha = alpha.expand(-1, num_actions) # (bs, num_actions)
-    # beta = beta.expand(-1, num_actions)
-    # print('alpha', alpha.shape, 'beta', beta.shape)
     dist = torch.distributions.Beta(alpha, beta)
     logprob = dist.log_prob(unscaled_act)
     assert logprob.shape == act.shape
     entropy = dist.entropy()
-    return logprob, entropy.sum(dim=-1)
+    return logprob.sum(dim=-1), entropy.sum(dim=-1)
 
 class MLPCritic(nn.Module):
   def __init__(self, obs_dim: int, hidden_sizes: list[int], activation: nn.Module = nn.Tanh) -> None:
