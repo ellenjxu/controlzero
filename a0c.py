@@ -57,8 +57,8 @@ class A0C:
     self.start = time.time()
     self.device = device
     self.debug = debug
-    # self.mcts = AlphaZero(model, device=device)
-    self.mcts = MCTS()
+    self.mcts = AlphaZero(model, device=device)
+    # self.mcts = MCTS()
     self.running_stats = RunningStats()
 
   # def _compute_return(self, rewards):
@@ -122,11 +122,10 @@ class A0C:
     with torch.no_grad():
       error = logprobs - self.tau * logcounts # pos/neg tells you whether to push action up or down
     policy_loss = (error * logprobs).mean()
-    if self.debug:
-      print(f"logprobs: {logprobs[0]}, logcounts: {logcounts[0]}, error: {error[0]}")
-      print(f"mean absolute error: {torch.mean(torch.abs(error))}")
-      print(f"std: {self.model.actor.log_std}")
-      print(logcounts.shape, logprobs.shape)
+    # if self.debug:
+      # print(f"logprobs: {logprobs[0]}, logcounts: {logcounts[0]}, error: {error[0]}")
+      # print(f"mean absolute error: {torch.mean(torch.abs(error))}")
+      # print(f"std: {self.model.actor.log_std}")
     
     policy_loss -= self.ent_coeff * entropy.mean()
     
@@ -186,14 +185,14 @@ class A0C:
         self.optimizer.zero_grad()
         loss.backward()
 
-        # check grad norms
-        total_grad_norm = 0
-        for name, param in self.model.actor.named_parameters():
-          if param.grad is not None:
-            grad_norm = param.grad.norm().item()
-            total_grad_norm += grad_norm
-            if self.debug:
-              print(f"Gradient norm for {name}: {grad_norm:.5f}")
+        # # check grad norms
+        # total_grad_norm = 0
+        # for name, param in self.model.actor.named_parameters():
+        #   if param.grad is not None:
+        #     grad_norm = param.grad.norm().item()
+        #     total_grad_norm += grad_norm
+        #     if self.debug:
+        #       print(f"Gradient norm for {name}: {grad_norm:.5f}")
         self.optimizer.step()
 
       # avg_reward = np.mean(episode_rewards)
