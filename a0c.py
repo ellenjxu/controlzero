@@ -29,10 +29,10 @@ class AlphaZero(MCTS):
     self.model = model # f_theta(s) -> pi(s), V(s)
     self.device = device
 
-  # def _value(self, state): # override methods to use NN
-  #   with torch.no_grad():
-  #     _, value = self.model(state.to_tensor().to(self.device))
-  #   return value
+  def _value(self, state): # override methods to use NN
+    with torch.no_grad():
+      _, value = self.model(state.to_tensor().to(self.device))
+    return value
 
   def _puct(self, state: State, action: np.ndarray):
     state_tensor = state.to_tensor().to(self.device)
@@ -61,21 +61,12 @@ class A0C:
     # self.mcts = MCTS()
     self.running_stats = RunningStats()
 
-  # def _compute_return(self, rewards):
-  #   returns = np.zeros_like(rewards)
-  #   next_value = 0
-  #   for t in reversed(range(len(rewards))):
-  #     returns[t] = rewards[t] + self.gamma * next_value
-  #     next_value = returns[t]
-  #   return returns
-
-  # A0C max_a Q version
   def _compute_return(self, states):
     states = np.array(states)
     returns = []
     for state in states:
       s = CartState.from_array(state)
-      q_values = [self.mcts.Q[(s,a)] for a in self.mcts.children[s]]
+      q_values = [self.mcts.Q[(s,a)] for a in self.mcts.children[s]] # a0c uses max_a Q vs environment rewards
       v_target = max(q_values) if q_values else 0
       returns.append(v_target)
     return np.array(returns)
@@ -92,30 +83,14 @@ class A0C:
     normalized_returns = (returns - self.mu) / (self.sigma + 1e-8)
     return normalized_returns
   
-  def _compute_actions_counts(self, states):
-    # from MCTS tree, gets the children actions of each state
-    # logprob = model.actor.get_logprob(states, actions)
-    # counts = normalized visit counts from MCTS tree, get log of counts
-    # Get visit counts for each state's actions from MCTS tree
-    counts_list, states_list, actions_list = [], [], []
-
-    for s in states:
-      actions, counts = self.mcts.get_policy(CartState.from_array(s))
-      counts_list.append(counts)
-      actions_list.append(actions)
-      states_list.append([s]*len(actions))
-    
-    return np.array(states_list), np.array(actions_list), np.array(counts_list)
-  
   def _evaluate_cost(self, states, returns, mcts_states, mcts_actions, mcts_counts):
     # when evaluating cost use normalized; unnorm only used in mcts search
-    # V = self.model.critic(states, normalize=True).squeeze()
-    # normalized_returns = self._normalize_return(returns)
-    # value_loss = nn.MSELoss()(V, normalized_returns)
+    V = self.model.critic(states, normalize=True).squeeze()
+    normalized_returns = self._normalize_return(returns)
+    value_loss = nn.MSELoss()(V, normalized_returns)
     # if self.debug:
       # print(f"value {V[0]} return {normalized_returns[0]}")
       # print(f"value range: {V.min():.3f} {V.max():.3f}, returns range: {normalized_returns.min():.3f} {normalized_returns.max():.3f}")
-    value_loss = torch.tensor(0)
     
     logcounts = torch.log(torch.tensor(mcts_counts, device=self.device))
     logprobs, entropy = self.model.actor.get_logprob(mcts_states, mcts_actions.unsqueeze(-1))
@@ -135,7 +110,7 @@ class A0C:
   
   @staticmethod
   def rollout(env, model, max_steps=1000, deterministic=False, device='cpu'):
-    states, actions, rewards, dones = [], [], [], []
+    states, rewards, mcts_states, mcts_actions, mcts_counts = [], [], [], [], []
     state, _ = env.reset()
 
     for _ in range(max_steps):
@@ -144,33 +119,36 @@ class A0C:
       next_state, reward, terminated, truncated, info = env.step(np.array([[best_action]]))
       states.append(state)
       rewards.append(reward)
-      actions.append(best_action)
       done = terminated or truncated
-      dones.append(done)
+
+      actions, counts = model.get_policy(s)
+      mcts_counts.append(counts)
+      mcts_actions.append(actions)
+      mcts_states.append([state]*len(actions))
 
       state = next_state
       if done:
         state, _ = env.reset()
         model.reset() # reset mcts tree
-    return states, actions, rewards, dones, next_state
+    return states, rewards, mcts_states, mcts_actions, mcts_counts
 
   def train(self, max_iters=1000, n_episodes=10, n_steps=30):
     for i in range(max_iters):
+      episode_rewards = []
       for _ in range(n_episodes):
         # collect data
-        states, actions, rewards, dones, next_state = self.rollout(self.env, self.mcts, n_steps, device=self.device)
-        # returns = self._compute_return(np.array(rewards))
+        states, rewards, mcts_states, mcts_actions, mcts_counts = self.rollout(self.env, self.mcts, n_steps, device=self.device)
         returns = self._compute_return(states)
-        mcts_states, mcts_actions, mcts_counts = self._compute_actions_counts(states)
-
+        episode_rewards.append(sum(rewards)) # for logging
+        
         # add to replay buffer
         episode_dict = TensorDict(
           {
             "states": states,
             "returns": returns,
-            "mcts_states": mcts_states,
-            "mcts_actions": mcts_actions,
-            "mcts_counts": mcts_counts,
+            "mcts_states": np.array(mcts_states),
+            "mcts_actions": np.array(mcts_actions),
+            "mcts_counts": np.array(mcts_counts),
           },
           batch_size=len(states)
         )
@@ -180,9 +158,7 @@ class A0C:
       for _ in range(self.epochs):
         batch = self.replay_buffer.sample(batch_size=n_steps*n_episodes) # TODO: taking entire batch of 300
         costs = self._evaluate_cost(batch['states'], batch['returns'], batch['mcts_states'], batch['mcts_actions'], batch['mcts_counts'])
-        # loss = costs["policy"] + 0.5*costs["value"] + 1e-4 * costs["l2"]
-        loss = costs["policy"]
-        print(f"epoch {_}, {loss}")
+        loss = costs["policy"] + 0.5 * costs["value"] + 1e-4 * costs["l2"]
         self.optimizer.zero_grad()
         loss.backward()
 
@@ -196,12 +172,11 @@ class A0C:
         #       print(f"Gradient norm for {name}: {grad_norm:.5f}")
         self.optimizer.step()
 
-      # avg_reward = np.mean(episode_rewards)
+      avg_reward = np.mean(episode_rewards)
       if self.debug:
-        print(f"actor loss {costs['policy'].item():.3f}")
-        # print(f"actor loss {costs['policy'].item():.3f} value loss {costs['value'].item():.3f} mean action {np.mean(abs(np.array(actions)))}")
-      # print(f"iter {i}, reward {avg_reward:.3f}, t {time.time()-self.start:.2f}")
-      # self.hist.append((i, avg_reward))
+        print(f"actor loss {costs['policy'].item():.3f} value loss {costs['value'].item():.3f} l2 loss {costs['l2'].item():.3f}")
+      print(f"iter {i}, reward {avg_reward:.3f}, t {time.time()-self.start:.2f}")
+      self.hist.append((i, avg_reward))
 
     print(f"Total time: {time.time() - self.start}")
     return self.model.actor, self.hist
