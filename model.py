@@ -107,10 +107,14 @@ class MLPCritic(nn.Module):
   def __init__(self, obs_dim: int, hidden_sizes: list[int], activation: nn.Module = nn.Tanh) -> None:
     super(MLPCritic, self).__init__()
     self.mlp = mlp([obs_dim] + list(hidden_sizes) + [1], activation)
+    self.register_buffer('mean', torch.tensor(0.0))
+    self.register_buffer('std', torch.tensor(1.0))
 
-  def forward(self, x: torch.Tensor) -> torch.Tensor:
-    return self.mlp(x)
-
+  def forward(self, x: torch.Tensor, normalize: bool = False) -> torch.Tensor:
+    if normalize:
+      return self.mlp(x)                      # mlp predicts normalized value
+    return self.mlp(x) * self.std + self.mean #  -> unnormalize in mcts
+  
 class ActorCritic(nn.Module):
   def __init__(self, obs_dim: int, hidden_sizes: dict[str, list[int]], act_dim: int, discrete: bool = False, shared_layers: bool = True, act_bound: tuple[float, float] = None) -> None:
     super(ActorCritic, self).__init__()
