@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from networks.mcts import MCTS, State
 
-class A0C(MCTS):
+class A0CModel(MCTS):
   """AlphaZero Continuous. Uses NN to guide MCTS search."""
   def __init__(self, model, exploration_weight=1e-3, gamma=0.99, k=1, alpha=0.5, device='cpu'):
     super().__init__(exploration_weight, gamma, k, alpha)
