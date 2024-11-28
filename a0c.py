@@ -30,17 +30,19 @@ class AlphaZero(MCTS):
     self.device = device
 
   def _value(self, state): # override methods to use NN
-    _, value = self.model(state.to_tensor().to(self.device))
-    return value.detach().cpu().numpy().squeeze()
+    with torch.no_grad():
+      _, value = self.model(state.to_tensor().to(self.device))
+    return value
 
   def _puct(self, state: State, action: np.ndarray):
     state_tensor = state.to_tensor().to(self.device)
     action_tensor = torch.tensor([action], device=self.device)
-    logprob, entropy = self.model.actor.get_logprob(state_tensor, action_tensor)
+    with torch.no_grad():
+      logprob, entropy = self.model.actor.get_logprob(state_tensor, action_tensor)
     return self.Q[(state,action)] + self.exploration_weight * math.exp(logprob) * math.sqrt(self.Ns[state])/(self.N[(state,action)]+1)
 
 class A0C:
-  def __init__(self, env, model, lr=1e-1, gamma=0.99, tau=1,clip_range=0.2, epochs=10, ent_coeff=0.01, env_bs=1, device='cpu', debug=False):
+  def __init__(self, env, model, lr=1e-2, gamma=0.99, tau=1,clip_range=0.2, epochs=10, ent_coeff=0.01, env_bs=1, device='cpu', debug=False):
     self.env = env
     self.env_bs = env_bs
     self.model = model.to(device)
@@ -116,17 +118,17 @@ class A0C:
     value_loss = torch.tensor(0)
     
     logcounts = torch.log(torch.tensor(mcts_counts, device=self.device))
-    logprobs, _ = self.model.actor.get_logprob(mcts_states, mcts_actions.unsqueeze(-1))
+    logprobs, entropy = self.model.actor.get_logprob(mcts_states, mcts_actions.unsqueeze(-1))
     with torch.no_grad():
       error = logprobs - self.tau * logcounts # pos/neg tells you whether to push action up or down
     policy_loss = (error * logprobs).mean()
     if self.debug:
       print(f"logprobs: {logprobs[0]}, logcounts: {logcounts[0]}, error: {error[0]}")
       print(f"mean absolute error: {torch.mean(torch.abs(error))}")
+      print(f"std: {self.model.actor.log_std}")
       print(logcounts.shape, logprobs.shape)
     
-    # TODO: entropy
-    # policy_loss -= self.ent_coeff * entropy.mean()
+    policy_loss -= self.ent_coeff * entropy.mean()
     
     l2_loss = sum(torch.norm(param) for param in self.model.parameters())
     return {"policy": policy_loss, "value": value_loss, "l2": l2_loss}
@@ -183,6 +185,15 @@ class A0C:
         print(f"epoch {_}, {loss}")
         self.optimizer.zero_grad()
         loss.backward()
+
+        # check grad norms
+        total_grad_norm = 0
+        for name, param in self.model.actor.named_parameters():
+          if param.grad is not None:
+            grad_norm = param.grad.norm().item()
+            total_grad_norm += grad_norm
+            if self.debug:
+              print(f"Gradient norm for {name}: {grad_norm:.5f}")
         self.optimizer.step()
 
       # avg_reward = np.mean(episode_rewards)
@@ -209,7 +220,7 @@ if __name__ == "__main__":
 
   print(f"training a0c with max_iters {args.max_iters}") 
   env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=args.env_bs)
-  model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1]) #, act_bound=(-10, 10))
+  model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1]) #act_bound=(-1, 1))
   a0c = A0C(env, model, env_bs=args.env_bs, debug=args.debug)
   best_model, hist = a0c.train(args.max_iters, args.n_eps, args.n_steps)
 
