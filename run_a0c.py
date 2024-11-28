@@ -58,10 +58,10 @@ class A0C:
     return normalized_returns
   
   def value_loss(self, states, returns):
-    # value loss is MSE with normalized Q values
+    # value loss is MSE/MAE with normalized Q values
     V = self.model.critic(states, normalize=True).squeeze() # normalize = True, unnorm only in mcts search
     normalized_returns = self._normalize_return(returns)
-    value_loss = nn.MSELoss()(V, normalized_returns)
+    value_loss = nn.L1Loss()(V, normalized_returns)
     if self.debug:
       print(f"value {V[0]} return {normalized_returns[0]}")
       print(f"value range: {V.min():.3f} {V.max():.3f}, returns range: {normalized_returns.min():.3f} {normalized_returns.max():.3f}")
