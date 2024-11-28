@@ -132,12 +132,7 @@ class A0C:
         loss.backward()
         self.optimizer.step()
       
-      # evaluate current actor net
-      eps_rewards = []
-      for _ in range(5):
-        rewards = rollout(self.model.actor, self.env, max_steps=n_steps, deterministic=True)
-        eps_rewards.append(sum(rewards))
-      avg_reward = np.mean(eps_rewards)
+      avg_reward = np.mean(evaluate(self.model.actor, self.env))
 
       # log metrics
       self.hist['iter'].append(i)
@@ -151,9 +146,16 @@ class A0C:
 
     print(f"Total time: {time.time() - start}")
     return self.model, self.hist
+  
+def evaluate(model, env, n_episodes=10, n_steps=200, seed=42):
+  eps_rewards = []
+  for i in range(n_episodes):
+    rewards = rollout(model, env, max_steps=n_steps, seed=seed+i, deterministic=True)
+    eps_rewards.append(sum(rewards))
+  return eps_rewards
 
-def rollout(model, env, max_steps=1000, deterministic=False):
-  state, _ = env.reset()
+def rollout(model, env, max_steps=1000, seed=42, deterministic=False):
+  state, _ = env.reset(seed=seed)
   rewards = []
   for _ in range(max_steps):
     state_tensor = torch.FloatTensor(state).unsqueeze(0)
