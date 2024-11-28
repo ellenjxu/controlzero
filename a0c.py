@@ -31,7 +31,7 @@ class AlphaZero(MCTS):
 
   def _value(self, state): # override methods to use NN
     _, value = self.model(state.to_tensor().to(self.device))
-    return value
+    return value.detach().cpu().numpy().squeeze()
 
   # def _puct(self, state: State, action: np.ndarray):
   #   logprob, entropy = self.model.actor.get_logprob(
@@ -58,8 +58,8 @@ class A0C:
     self.start = time.time()
     self.device = device
     self.debug = debug
-    # self.mcts = AlphaZero(model, device=device)
-    self.mcts = MCTS()
+    self.mcts = AlphaZero(model, device=device)
+    # self.mcts = MCTS()
     self.running_stats = RunningStats()
 
   # def _compute_return(self, rewards):
