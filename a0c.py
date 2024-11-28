@@ -29,10 +29,10 @@ class AlphaZero(MCTS):
     self.model = model # f_theta(s) -> pi(s), V(s)
     self.device = device
 
-  def _value(self, state): # override methods to use NN
-    with torch.no_grad():
-      _, value = self.model(state.to_tensor().to(self.device))
-    return value
+  # def _value(self, state): # override methods to use NN
+  #   with torch.no_grad():
+  #     _, value = self.model(state.to_tensor().to(self.device))
+  #   return value
 
   def _puct(self, state: State, action: np.ndarray):
     state_tensor = state.to_tensor().to(self.device)
@@ -57,8 +57,8 @@ class A0C:
     self.start = time.time()
     self.device = device
     self.debug = debug
-    # self.mcts = AlphaZero(model, device=device)
-    self.mcts = MCTS()
+    self.mcts = AlphaZero(model, device=device)
+    # self.mcts = MCTS()
     self.running_stats = RunningStats()
 
   # def _compute_return(self, rewards):
@@ -220,7 +220,7 @@ if __name__ == "__main__":
 
   print(f"training a0c with max_iters {args.max_iters}") 
   env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=args.env_bs)
-  model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1], act_bound=(-1, 1))
+  model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1]) #, act_bound=(-1, 1))
   a0c = A0C(env, model, env_bs=args.env_bs, debug=args.debug)
   best_model, hist = a0c.train(args.max_iters, args.n_eps, args.n_steps)
 
