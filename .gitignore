@@ -4,3 +4,4 @@ out/
 *.pth
 *.pkl
 *.pt
+testing/
