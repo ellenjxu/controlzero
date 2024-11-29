@@ -19,11 +19,12 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 class A0C:
-  def __init__(self, env, model, lr=1e-1, epochs=10, ent_coeff=0.01, env_bs=1, device='cpu', debug=False):
+  def __init__(self, env, model, tau=1, lr=1e-1, epochs=10, ent_coeff=0.01, env_bs=1, device='cpu', debug=False):
     self.env = env
     self.env_bs = env_bs
     self.model = model.to(device)
     self.epochs = epochs
+    self.tau = tau
     self.ent_coeff = ent_coeff
     self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
     self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=100000, device=device))
@@ -72,7 +73,7 @@ class A0C:
     logcounts = torch.log(torch.tensor(mcts_counts, device=self.device))
     logprobs, entropy = self.model.actor.get_logprob(mcts_states, mcts_actions.unsqueeze(-1))
     with torch.no_grad():
-      error = logprobs - logcounts # self.tau * logcounts
+      error = logprobs - self.tau * logcounts
     policy_loss = (error * logprobs).mean()
     policy_loss -= self.ent_coeff * entropy.mean()
     if self.debug:
@@ -134,12 +135,7 @@ class A0C:
         loss.backward()
         self.optimizer.step()
       
-      # evaluate current actor net
-      eps_rewards = []
-      for _ in range(5):
-        rewards = rollout(self.model.actor, self.env, max_steps=n_steps, deterministic=True)
-        eps_rewards.append(sum(rewards))
-      avg_reward = np.mean(eps_rewards)
+      avg_reward = np.mean(evaluate(self.model.actor, self.env))
 
       # log metrics
       self.hist['iter'].append(i)
@@ -154,8 +150,15 @@ class A0C:
     print(f"Total time: {time.time() - self.start}")
     return self.model, self.hist
 
-def rollout(model, env, max_steps=1000, deterministic=False):
-  state, _ = env.reset()
+def evaluate(model, env, n_episodes=10, n_steps=200, seed=42):
+  eps_rewards = []
+  for i in range(n_episodes):
+    rewards = rollout(model, env, max_steps=n_steps, seed=seed+i, deterministic=True)
+    eps_rewards.append(sum(rewards))
+  return eps_rewards
+
+def rollout(model, env, max_steps=1000, seed=42, deterministic=False):
+  state, _ = env.reset(seed=seed)
   rewards = []
   for _ in range(max_steps):
     state_tensor = torch.FloatTensor(state).unsqueeze(0)
