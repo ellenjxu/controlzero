@@ -6,7 +6,6 @@ import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 import gymnasium as gym
-import gym_cartlataccel
 import matplotlib.pyplot as plt
 from torchrl.data import ReplayBuffer, LazyTensorStorage
 from tensordict import TensorDict
@@ -33,8 +32,8 @@ class A0C:
     self.start = time.time()
     self.device = device
     self.debug = debug
-    self.mcts = A0CModel(model, exploration_weight=1e-1, gamma=0.99, k=1, alpha=0.5, device=device)
-    # self.mcts = MCTS()
+    # self.mcts = A0CModel(model, exploration_weight=1e-1, gamma=0.99, k=1, alpha=0.5, device=device)
+    self.mcts = MCTS()
     self.running_stats = RunningStats()
     self.hist = {'iter': [], 'reward': [], 'value_loss': [], 'policy_loss': [], 'total_loss': []}
 
@@ -165,7 +164,11 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   print(f"training a0c with max_iters {args.max_iters}") 
-  env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=args.env_bs)
+
+  # env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=args.env_bs)
+  from gym_cartlataccel.env_v1 import CartLatAccelEnv
+  env = CartLatAccelEnv(noise_mode=args.noise_mode, env_bs=args.env_bs)
+
   model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1]) #, act_bound=(-1, 1))
   a0c = A0C(env, model, env_bs=args.env_bs, debug=args.debug)
   best_model, hist = a0c.train(args.max_iters, args.n_eps, args.n_steps)
