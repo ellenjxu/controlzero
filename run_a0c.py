@@ -31,7 +31,7 @@ class A0C:
     self.start = time.time()
     self.device = device
     self.debug = debug
-    self.mcts = A0CModel(model, device=device)
+    self.mcts = A0CModel(model, exploration_weight=1e-1, gamma=0.99, k=1, alpha=0.5, device=device)
     # self.mcts = MCTS()
     self.running_stats = RunningStats()
     self.hist = {'iter': [], 'reward': [], 'value_loss': [], 'policy_loss': [], 'total_loss': []}
@@ -168,9 +168,8 @@ def rollout(model, env, max_steps=1000, seed=42, deterministic=False, device='cp
     state = next_state
     rewards.append(reward)
     if done:
-      env.close()
+      state, _ = env.reset()
       break
-  env.close()
   return rewards
 
 def plot_losses(hist, save_path=None):
@@ -190,6 +189,7 @@ def plot_losses(hist, save_path=None):
   ax2.set_ylabel('reward')
   ax2.legend()
   
+  plt.suptitle(f"A0C on CartLatAccel with {args.noise_mode} noise")
   plt.tight_layout()
   if save_path:
     plt.savefig(save_path)
@@ -223,8 +223,8 @@ if __name__ == "__main__":
   # run actor net model
   print("rollout out best actor")
   env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=1, render_mode="human")
-  rewards = rollout(best_model.actor, env, max_steps=200, deterministic=True)
-  print(f"reward {sum(rewards)}")
+  rewards = evaluate(best_model.actor, env, n_episodes=10, n_steps=200)
+  print(f"reward {np.mean(rewards):.3f}, std {np.std(rewards):.3f}")
 
   if args.save:
     os.makedirs('out', exist_ok=True)
