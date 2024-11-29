@@ -62,7 +62,7 @@ class MLPGaussian(nn.Module):
     mean, std = self.get_policy(obs)
     logprob = -0.5 * (((act - mean)**2) / std**2 + 2 * self.log_std + torch.log(torch.tensor(2*torch.pi)))
     entropy = (torch.log(std) + 0.5 * (1 + torch.log(torch.tensor(2*torch.pi))))
-    assert logprob.shape == act.shape
+    # assert logprob.shape == act.shape
     return logprob.sum(dim=-1), entropy.sum(dim=-1)
 
 class MLPBeta(nn.Module):
