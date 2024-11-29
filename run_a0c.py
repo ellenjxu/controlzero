@@ -198,7 +198,7 @@ def plot_losses(hist, save_path=None):
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
-  parser.add_argument("--max_iters", type=int, default=30)
+  parser.add_argument("--max_iters", type=int, default=10)
   parser.add_argument("--n_eps", type=int, default=10)
   parser.add_argument("--n_steps", type=int, default=30)
   parser.add_argument("--env_bs", type=int, default=1) # TODO: batch

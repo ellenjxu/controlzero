@@ -50,21 +50,29 @@ class MCTS:
   def puct_select(self, s: State):
     return max(self.children[s], key=lambda a: self._puct(s, a))
 
-  def search(self, s: State, d: int):
+  def search(self, s: State, d: int, is_root: bool = True, k_max: int = 10):
     """Runs a MCTS simulation from state to depth d. Returns q, the value of the state"""
     if d <= 0:
       return self._value(s)
 
-    m = self.k * self.Ns[s] ** self.alpha # progressive widening
-    if s not in self.children or len(self.children[s]) < m:
-      a = s.sample_action()
-      if a not in self.children[s]:
-        self.children[s].append(a)
-    else:
-      a = self.puct_select(s)                             # selection
-    next_state, r = s.generate(a)                         # expansion
-    q = r + self.gamma * self.search(next_state, d-1)     # simulation
-    self.N[(s,a)] += 1                                    # backpropagation
+    if is_root:
+      if s not in self.children or len(self.children[s]) < k_max: # TODO: fixed number of children for root node
+        a = s.sample_action()
+        if a not in self.children[s]:
+          self.children[s].append(a)
+      else:
+        a = self.puct_select(s)
+    else:      # otherwise use progressive widening
+      m = self.k * self.Ns[s] ** self.alpha
+      if s not in self.children or len(self.children[s]) < m:
+        a = s.sample_action()
+        if a not in self.children[s]:
+          self.children[s].append(a)
+      else:
+        a = self.puct_select(s)                                   # selection
+    next_state, r = s.generate(a)                                 # expansion
+    q = r + self.gamma * self.search(next_state, d-1, False)      # simulation
+    self.N[(s,a)] += 1                                            # backpropagation
     self.Q[(s,a)] += (q-self.Q[(s,a)])/self.N[(s,a)]
     self.Ns[s] += 1
     return q
