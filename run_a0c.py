@@ -10,8 +10,7 @@ import gym_cartlataccel
 import matplotlib.pyplot as plt
 from torchrl.data import ReplayBuffer, LazyTensorStorage
 from tensordict import TensorDict
-from networks.alphazero import A0C as A0CModel
-from networks.mcts import MCTS
+from networks.mcts import MCTS, A0CModel
 from networks.agent import ActorCritic
 from run_mcts import CartState
 from utils.running_stats import RunningStats
