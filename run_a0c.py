@@ -111,10 +111,6 @@ class A0C:
   def train(self, max_iters=1000, n_episodes=10, n_steps=30):
     for i in range(max_iters):
       # collect data using mcts
-      import cProfile
-      profiler = cProfile.Profile()
-      profiler.enable()
-
       for _ in range(n_episodes):
         states, rewards, mcts_states, mcts_actions, mcts_counts = self.mcts_rollout(n_steps)
         returns = self._compute_return(states)
@@ -139,21 +135,17 @@ class A0C:
         loss.backward()
         self.optimizer.step()
       
+      # log metrics
       avg_reward = np.mean(evaluate(self.model.actor, self.env))
 
-      # log metrics
       self.hist['iter'].append(i)
       self.hist['reward'].append(avg_reward)
       self.hist['value_loss'].append(value_loss.item())
-      self.hist['policy_loss'].append(policy_loss.item())
+      self.hist['policy_loss'].append(abs(policy_loss.item()))
       self.hist['total_loss'].append(loss.item())
 
-      print(f"actor loss {policy_loss.item():.3f} value loss {value_loss.item():.3f} l2 loss {l2_loss.item():.3f}")
+      print(f"actor loss {abs(policy_loss.item()):.3f} value loss {value_loss.item():.3f} l2 loss {l2_loss.item():.3f}")
       print(f"iter {i}, reward {avg_reward:.3f}, t {time.time()-self.start:.2f}")
-
-      profiler.disable()
-      profiler.print_stats(sort='cumtime')
-      break
 
     print(f"Total time: {time.time() - self.start}")
     return self.model, self.hist
