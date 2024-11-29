@@ -24,7 +24,7 @@ class State(ABC):
     pass
 
 class MCTS:
-  def __init__(self, exploration_weight=1e-3, gamma=0.99, k=1, alpha=0.5): # TODO: exploration weight
+  def __init__(self, exploration_weight=1e-1, gamma=0.99, k=1, alpha=0.5): # TODO: exploration weight
     self.gamma = gamma
     self.exploration_weight = exploration_weight
     self.k = k

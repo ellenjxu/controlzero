@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from torchrl.data import ReplayBuffer, LazyTensorStorage
 from tensordict import TensorDict
 from networks.alphazero import A0C as A0CModel
+from networks.mcts import MCTS
 from networks.agent import ActorCritic
 from run_mcts import CartState
 from utils.running_stats import RunningStats
@@ -111,6 +112,10 @@ class A0C:
   def train(self, max_iters=1000, n_episodes=10, n_steps=30):
     for i in range(max_iters):
       # collect data using mcts
+      import cProfile
+      profiler = cProfile.Profile()
+      profiler.enable()
+
       for _ in range(n_episodes):
         states, rewards, mcts_states, mcts_actions, mcts_counts = self.mcts_rollout(n_steps)
         returns = self._compute_return(states)
@@ -146,6 +151,10 @@ class A0C:
 
       print(f"actor loss {policy_loss.item():.3f} value loss {value_loss.item():.3f} l2 loss {l2_loss.item():.3f}")
       print(f"iter {i}, reward {avg_reward:.3f}, t {time.time()-self.start:.2f}")
+
+      profiler.disable()
+      profiler.print_stats(sort='cumtime')
+      break
 
     print(f"Total time: {time.time() - self.start}")
     return self.model, self.hist
