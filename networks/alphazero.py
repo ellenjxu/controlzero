@@ -26,8 +26,8 @@ class A0C(MCTS):
   def puct_select(self, state: State): # batched
     actions = self.children[state]
     logprobs = self._batched_logprobs(state, actions)
-    q_values = torch.tensor([float(self.Q[(state, a)]) for a in actions], device=self.device)
-    visits = torch.tensor([float(self.N[(state, a)]) for a in actions], device=self.device)
+    q_values = torch.FloatTensor([self.Q[(state, a)] for a in actions]).to(self.device)
+    visits = torch.FloatTensor([self.N[(state, a)] for a in actions]).to(self.device)
     
     # puct score
     sqrt_ns = math.sqrt(float(self.Ns[state]))

@@ -45,7 +45,7 @@ class A0C:
       q_values = [self.mcts.Q[(s,a)] for a in self.mcts.children[s]] # a0c uses max_a Q vs environment rewards
       v_target = max(q_values) if q_values else 0
       returns.append(v_target)
-    return np.array(returns)
+    return returns
 
   def _normalize_return(self, returns):
     for r in returns:
@@ -121,11 +121,11 @@ class A0C:
         returns = self._compute_return(states)
         
         episode_dict = TensorDict( {
-            "states": states,
-            "returns": returns,
-            "mcts_states": np.array(mcts_states),
-            "mcts_actions": np.array(mcts_actions),
-            "mcts_counts": np.array(mcts_counts),
+            "states": torch.FloatTensor(states).to(self.device),
+            "returns": torch.FloatTensor(returns).to(self.device),
+            "mcts_states": torch.FloatTensor(mcts_states).to(self.device),
+            "mcts_actions": torch.FloatTensor(mcts_actions).to(self.device),
+            "mcts_counts": torch.FloatTensor(mcts_counts).to(self.device),
         }, batch_size=len(states))
         self.replay_buffer.extend(episode_dict)
 
@@ -166,11 +166,11 @@ def evaluate(model, env, n_episodes=10, n_steps=200, seed=42):
     eps_rewards.append(sum(rewards))
   return eps_rewards
 
-def rollout(model, env, max_steps=1000, seed=42, deterministic=False):
+def rollout(model, env, max_steps=1000, seed=42, deterministic=False, device='cpu'):
   state, _ = env.reset(seed=seed)
   rewards = []
   for _ in range(max_steps):
-    state_tensor = torch.FloatTensor(state).unsqueeze(0)
+    state_tensor = torch.FloatTensor(state).unsqueeze(0).to(device)
     action = model.get_action(state_tensor, deterministic=deterministic)
     next_state, reward, terminated, truncated, info = env.step(action)
     done = terminated or truncated
