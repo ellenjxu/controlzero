@@ -69,9 +69,10 @@ def mcts_worker(env_params, model_params, seed, max_steps=1000):
   return (states, returns, mcts_states, mcts_actions, mcts_counts)
 
 class A0C:
-  def __init__(self, env, model, tau=1, lr=1e-1, epochs=10, bs=512, ent_coeff=0.01, env_bs=1, device='cpu', debug=False, n_trees=None):
+  def __init__(self, env, model, tau=1, lr=1e-1, epochs=10, bs=512, ent_coeff=0.01, env_bs=1, device='cpu', debug=False, n_trees=None, noise_mode=None):
     self.env = env
     self.env_bs = env_bs
+    self.noise_mode = noise_mode
     self.model = model.to(device)
     self.epochs = epochs
     self.tau = tau
@@ -127,7 +128,7 @@ class A0C:
 
   def mcts_rollout(self, n_steps=30):
     """Rolls out n_trees parallel MCTS simulations each for n_steps"""
-    env_params = {'noise_mode': None, 'env_bs': self.env_bs}
+    env_params = {'noise_mode': self.noise_mode, 'env_bs': self.env_bs}
     model_params = self.model.state_dict()
     
     with mp.Pool(processes=self.n_trees) as pool:
@@ -213,19 +214,22 @@ if __name__ == "__main__":
   np.random.seed(args.seed)
   torch.manual_seed(args.seed)
 
-  print(f"Training A0C with max_iters {args.max_iters}, n_trees {args.n_trees or mp.cpu_count()}")
+  print(f"Training A0C with max_iters {args.max_iters} and {args.noise_mode} noise")
   
-  env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=args.env_bs)
+  # env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=args.env_bs)
+  from gym_cartlataccel.env_v1 import CartLatAccelEnv
+  env = CartLatAccelEnv(noise_mode=args.noise_mode, env_bs=args.env_bs)
   model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1])
   
-  a0c = A0C(env, model, env_bs=args.env_bs, debug=args.debug, n_trees=args.n_trees)
+  a0c = A0C(env, model, env_bs=args.env_bs, debug=args.debug, n_trees=args.n_trees, noise_mode=args.noise_mode)
   best_model, hist = a0c.train(args.max_iters, args.n_steps)
 
   print("Rollout out best actor")
   env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=1, render_mode="human")
   rewards = sample_rollout(best_model.actor, env, n_episodes=10, n_steps=200)
+  env.close()
   print(f"reward {np.mean(rewards):.3f}, std {np.std(rewards):.3f}")
-
+  
   if args.save:
     os.makedirs('out', exist_ok=True)
     torch.save(best_model, 'out/best.pt')
