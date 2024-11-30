@@ -18,8 +18,7 @@ from tensordict import TensorDict
 from networks.mcts import MCTS, A0CModel
 from networks.agent import ActorCritic
 from utils.cartstate import CartState
-from utils.running_stats import RunningStats
-from utils.evaluate import sample_rollout, plot_losses
+from utils.helpers import sample_rollout, plot_losses, RunningStats
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
