@@ -79,23 +79,26 @@ class MCTS:
     return q
 
   def get_policy(self, s: State):
+    """MCTS policy as mapping actions to counts, max Q values"""
     actions = self.children[s]
     visit_counts = np.array([self.N[(s,a)] for a in actions])
     # print(visit_counts)
     norm_counts = visit_counts / visit_counts.sum()
-    return actions, norm_counts
+    q_values = [self.Q[(s,a)] for a in actions]
+    max_q = max(q_values) if q_values else 0
+    return actions, norm_counts, max_q
 
   def get_action(self, s: State, d: int, n: int, deterministic: bool=False):
     for _ in range(n):
       self.search(s, d)
-    actions, norm_counts = self.get_policy(s)
+    actions, norm_counts, max_q = self.get_policy(s)
     
     if deterministic:
       best_idx = np.argmax(norm_counts)
-      return actions[best_idx], norm_counts[best_idx]
+      return actions[best_idx]
     else: # sample from distribution
       sampled_idx = np.random.choice(len(actions), p=norm_counts)
-      return actions[sampled_idx], norm_counts[sampled_idx]
+      return actions[sampled_idx]
 
 # A0C paper: https://arxiv.org/abs/1805.09613
 class A0CModel(MCTS):

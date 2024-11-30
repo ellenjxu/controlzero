@@ -38,16 +38,6 @@ class A0C:
     self.running_stats = RunningStats()
     self.hist = {'iter': [], 'reward': [], 'value_loss': [], 'policy_loss': [], 'total_loss': []}
 
-  def _compute_return(self, states):
-    states = np.array(states)
-    returns = []
-    for state in states:
-      s = CartState.from_array(state)
-      q_values = [self.mcts.Q[(s,a)] for a in self.mcts.children[s]] # a0c uses max_a Q vs environment rewards
-      v_target = max(q_values) if q_values else 0
-      returns.append(v_target)
-    return returns
-
   def _normalize_return(self, returns):
     for r in returns:
       self.running_stats.push(r)
@@ -88,34 +78,33 @@ class A0C:
     return l2_loss
   
   def mcts_rollout(self, max_steps=1000, deterministic=False):
-    states, rewards, mcts_states, mcts_actions, mcts_counts = [], [], [], [], []
+    states, returns, mcts_states, mcts_actions, mcts_counts = [], [], [], [], []
     state, _ = self.env.reset()
 
     for _ in range(max_steps):
       s = CartState.from_array(state)
-      best_action, _ = self.mcts.get_action(s, d=10, n=100, deterministic=True) # get single action and prob
-      next_state, reward, terminated, truncated, info = self.env.step(np.array([[best_action]]))
+      action = self.mcts.get_action(s, d=10, n=100, deterministic=True) # get single action and prob
+      next_state, reward, terminated, truncated, info = self.env.step(np.array([[action]]))
       states.append(state)
-      rewards.append(reward)
+      # rewards.append(reward)
       done = terminated or truncated
 
-      actions, norm_counts = self.mcts.get_policy(s)
+      actions, norm_counts, max_q = self.mcts.get_policy(s)
       mcts_counts.append(norm_counts)
       mcts_actions.append(actions)
       mcts_states.append([state]*len(actions))
-
+      returns.append(max_q) # use max_q as target returns
       state = next_state
       if done:
         state, _ = self.env.reset()
         self.mcts.reset() # reset mcts tree
-    return states, rewards, mcts_states, mcts_actions, mcts_counts
+    return states, returns, mcts_states, mcts_actions, mcts_counts
 
   def train(self, max_iters=1000, n_episodes=10, n_steps=30):
     for i in range(max_iters):
       # collect data using mcts
       for _ in range(n_episodes):
-        states, rewards, mcts_states, mcts_actions, mcts_counts = self.mcts_rollout(n_steps)
-        returns = self._compute_return(states)
+        states, returns, mcts_states, mcts_actions, mcts_counts = self.mcts_rollout(n_steps)
         
         episode_dict = TensorDict( {
             "states": torch.FloatTensor(states).to(self.device),
@@ -143,8 +132,8 @@ class A0C:
       self.hist['iter'].append(i)
       self.hist['reward'].append(avg_reward)
       self.hist['value_loss'].append(value_loss.item())
-      self.hist['policy_loss'].append(abs(policy_loss.item()))
-      self.hist['total_loss'].append(loss.item())
+      self.hist['policy_loss'].append(abs(policy_loss.item())) # use magnitude of policy loss for plot
+      self.hist['total_loss'].append(policy_loss.item() + 0.5 * value_loss.item() + 1e-4 * l2_loss.item())
 
       print(f"actor loss {abs(policy_loss.item()):.3f} value loss {value_loss.item():.3f} l2 loss {l2_loss.item():.3f}")
       print(f"iter {i}, reward {avg_reward:.3f}, t {time.time()-self.start:.2f}")
