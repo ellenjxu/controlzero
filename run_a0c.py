@@ -32,8 +32,8 @@ class A0C:
     self.start = time.time()
     self.device = device
     self.debug = debug
-    # self.mcts = A0CModel(model, exploration_weight=1e-1, gamma=0.99, k=1, alpha=0.5, device=device)
-    self.mcts = MCTS()
+    self.mcts = A0CModel(model, exploration_weight=1e-1, gamma=0.99, k=1, alpha=0.5, device=device)
+    # self.mcts = MCTS()
     self.running_stats = RunningStats()
     self.hist = {'iter': [], 'reward': [], 'value_loss': [], 'policy_loss': [], 'total_loss': []}
 
