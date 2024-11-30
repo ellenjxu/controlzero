@@ -111,21 +111,24 @@ class A0CModel(MCTS):
     return value
 
   def _batched_logprobs(self, s: State, actions: list[np.ndarray]):
-    state_tensor = s.to_tensor().to(self.device)
-    action_tensor = torch.tensor(actions, device=self.device)
+    state_tensor = s.to_tensor().to(self.device) # gets broadcasted to match action_tensor in get_logprob
+    action_tensor = torch.FloatTensor(actions, device=self.device).unsqueeze(-1)
     with torch.no_grad():
       logprobs, _ = self.model.actor.get_logprob(state_tensor, action_tensor)
     return logprobs
 
   def puct_select(self, state: State): # batched
     actions = self.children[state]
+    if len(actions) == 1:
+      return actions[0]
+
     logprobs = self._batched_logprobs(state, actions)
     q_values = torch.FloatTensor([self.Q[(state, a)] for a in actions]).to(self.device)
     visits = torch.FloatTensor([self.N[(state, a)] for a in actions]).to(self.device)
+    assert logprobs.shape == q_values.shape == visits.shape
     
     # puct score
     sqrt_ns = math.sqrt(float(self.Ns[state]))
     exploration = self.exploration_weight * torch.exp(logprobs) * (sqrt_ns / (visits + 1))
     score = q_values + exploration
-    
     return actions[torch.argmax(score).item()]
