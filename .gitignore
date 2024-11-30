@@ -5,3 +5,4 @@ out/
 *.pkl
 *.pt
 testing/
+gym_cartlataccel/
