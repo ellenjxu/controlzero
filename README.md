@@ -4,7 +4,7 @@ Famous successes with [AlphaZero](https://arxiv.org/abs/1712.01815) have been in
 
 **Can AlphaZero-like approaches learn optimal low-level controls?**
 
-This repo produces an AlphaZero agent for continuous controls in [~250 lines](https://github.com/ellenjxu/mcts-control/blob/main/train.py) of code. AlphaZero converges to a higher reward and more reliably with noise on a [1D car controls problem](https://github.com/ellenjxu/gym-cartlataccel) than PPO in initial experiments (-5.52 ± 1.92 vs -6.52 ± 2.44).
+This repo produces an AlphaZero agent for continuous controls in [~250 lines](https://github.com/ellenjxu/mcts-control/blob/main/train.py) of code.
 
 ## Results
 
