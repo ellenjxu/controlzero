@@ -114,11 +114,10 @@ class A0C:
     logprobs, entropy = self.model.actor.get_logprob(mcts_states, mcts_actions.unsqueeze(-1))
     with torch.no_grad():
       error = logprobs - self.tau * logcounts
-    policy_loss = (error * logprobs).mean()
-    policy_loss -= self.ent_coeff * entropy.mean()
+    policy_loss = (error * logprobs).mean() - self.ent_coeff * entropy.mean()
     if self.debug:
       print(f"mean absolute error: {torch.mean(torch.abs(error))}")
-      print(f"std: {self.model.actor.log_std.item()}")
+      # print(f"std: {self.model.actor.log_std.item()}")
     return policy_loss
 
   def l2_loss(self):
@@ -225,7 +224,7 @@ if __name__ == "__main__":
 
   print("Rollout out best actor")
   env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=1, render_mode="human")
-  rewards = sample_rollout(best_model.actor, env, n_episodes=10, n_steps=200)
+  rewards = sample_rollout(best_model.actor, env, n_episodes=5, n_steps=200)
   env.close()
   print(f"reward {np.mean(rewards):.3f}, std {np.std(rewards):.3f}")
   
