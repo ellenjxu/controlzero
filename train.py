@@ -118,7 +118,7 @@ class A0C:
     policy_loss -= self.ent_coeff * entropy.mean()
     if self.debug:
       print(f"mean absolute error: {torch.mean(torch.abs(error))}")
-      print(f"std: {self.model.actor.log_std}")
+      print(f"std: {self.model.actor.log_std.item()}")
     return policy_loss
 
   def l2_loss(self):
@@ -163,7 +163,6 @@ class A0C:
       mcts_start = time.time()
       episode_dict = self.mcts_rollout(n_steps)
       mcts_time = time.time() - mcts_start
-      print(f"collected {len(episode_dict['states'])} episodes in {mcts_time:.2f}s")
       self.replay_buffer.extend(episode_dict)
 
       # update model
@@ -191,9 +190,11 @@ class A0C:
       self.hist['policy_loss'].append(abs(policy_loss.item()))
       self.hist['total_loss'].append(policy_loss.item() + 0.5 * value_loss.item() + 1e-4 * l2_loss.item())
 
-      print(f"actor loss {abs(policy_loss.item()):.3f} value loss {value_loss.item():.3f} l2 loss {l2_loss.item():.3f}")
       print(f"iter {i}, reward {avg_reward:.3f}, total time {time.time()-self.start:.2f}s")
-      print(f"runtimes - mcts: {mcts_time:.2f}s, train: {train_time:.2f}s, eval: {eval_time:.2f}s\n")
+      if self.debug:
+        print(f"actor loss {abs(policy_loss.item()):.3f} value loss {value_loss.item():.3f} l2 loss {l2_loss.item():.3f}")
+        print(f"mean action {np.abs(batch['mcts_actions']).mean()}")
+        print(f"runtimes - mcts: {mcts_time:.2f}s, train: {train_time:.2f}s, eval: {eval_time:.2f}s\n")
 
     print(f"Total time: {time.time() - self.start}")
     return self.model, self.hist
@@ -215,9 +216,8 @@ if __name__ == "__main__":
 
   print(f"Training A0C with max_iters {args.max_iters} and {args.noise_mode} noise")
   
-  # env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=args.env_bs)
-  from gym_cartlataccel.env_v1 import CartLatAccelEnv
-  env = CartLatAccelEnv(noise_mode=args.noise_mode, env_bs=args.env_bs)
+  env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=args.env_bs)
+  # TODO: use beta dist , act_bound=(-1, 1)
   model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1])
   
   a0c = A0C(env, model, env_bs=args.env_bs, debug=args.debug, n_trees=args.n_trees, noise_mode=args.noise_mode)
