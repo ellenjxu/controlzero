@@ -2,10 +2,10 @@ import math
 import torch
 import matplotlib.pyplot as plt
 
-def sample_rollout(model, env, n_episodes=10, n_steps=200, seed=42):
+def sample_rollout(model, env, n_episodes=10, n_steps=200, seed=42, device='cpu'):
   eps_rewards = []
   for i in range(n_episodes):
-    rewards = rollout(model, env, max_steps=n_steps, seed=seed+i, deterministic=True)
+    rewards = rollout(model, env, max_steps=n_steps, seed=seed+i, deterministic=True, device=device)
     eps_rewards.append(sum(rewards))
   return eps_rewards
 

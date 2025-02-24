@@ -25,7 +25,7 @@ class State(ABC):
     pass
 
 class MCTS:
-  def __init__(self, exploration_weight=1e-1, gamma=0.99, k=1, alpha=0.5): # TODO: exploration weight
+  def __init__(self, exploration_weight=1e-2, gamma=0.99, k=1, alpha=0.5): # TODO: exploration weight. c_puct = 0.05
     self.gamma = gamma
     self.exploration_weight = exploration_weight
     self.k = k
@@ -52,7 +52,7 @@ class MCTS:
     return max(self.children[s], key=lambda a: self._puct(s, a))
 
   def search(self, s: State, d: int, is_root: bool = True, k_max: int = 10):
-    """Runs a MCTS simulation from state to depth d. Returns q, the value of the state"""
+    """Runs a MCTS simulation from state to depth d. Stores statstics and returns q, the value of the state"""
     if d <= 0:
       return self._value(s)
 
@@ -63,7 +63,7 @@ class MCTS:
           self.children[s].append(a)
       else:
         a = self.puct_select(s)
-    else:      # otherwise use progressive widening
+    else:      # If below threshold then choose new action (progressive widening), otw existing children
       m = self.k * self.Ns[s] ** self.alpha
       if s not in self.children or len(self.children[s]) < m:
         a = s.sample_action()
@@ -82,13 +82,14 @@ class MCTS:
     """MCTS policy as mapping actions to counts, max Q values"""
     actions = self.children[s]
     visit_counts = np.array([self.N[(s,a)] for a in actions])
-    # print(visit_counts)
+    # print("visit counts", visit_counts)
     norm_counts = visit_counts / visit_counts.sum()
     q_values = [self.Q[(s,a)] for a in actions]
     max_q = max(q_values) if q_values else 0
     return actions, norm_counts, max_q
 
   def get_action(self, s: State, d: int, n: int, deterministic: bool=False):
+    """Choose the best action from current state."""
     for _ in range(n):
       self.search(s, d)
     actions, norm_counts, max_q = self.get_policy(s)
@@ -103,7 +104,7 @@ class MCTS:
 # A0C paper: https://arxiv.org/abs/1805.09613
 class A0CModel(MCTS):
   """AlphaZero Continuous. Uses NN to guide MCTS search."""
-  def __init__(self, model, exploration_weight=1e-1, gamma=0.99, k=1, alpha=0.5, device='cpu'):
+  def __init__(self, model, exploration_weight=1e-2, gamma=0.99, k=1, alpha=0.5, device='cpu'):
     super().__init__(exploration_weight, gamma, k, alpha)
     self.model = model # f_theta(s) -> pi(s), V(s)
     self.device = device
@@ -113,25 +114,60 @@ class A0CModel(MCTS):
       _, value = self.model(state.to_tensor().to(self.device))
     return value
 
-  def _batched_logprobs(self, s: State, actions: list[np.ndarray]):
-    state_tensor = s.to_tensor().to(self.device) # gets broadcasted to match action_tensor in get_logprob
-    action_tensor = torch.FloatTensor(actions, device=self.device).unsqueeze(-1)
-    with torch.no_grad():
-      logprobs, _ = self.model.actor.get_logprob(state_tensor, action_tensor)
-    return logprobs
+  # def _batched_logprobs(self, s: State, actions: list[np.ndarray]):
+  #   state_tensor = s.to_tensor().to(self.device) # gets broadcasted to match action_tensor in get_logprob
+  #   action_tensor = torch.FloatTensor(actions, device=self.device).unsqueeze(-1)
+  #   with torch.no_grad():
+  #     logprobs, _ = self.model.actor.get_logprob(state_tensor, action_tensor)
+  #   return logprobs
 
-  def puct_select(self, state: State): # batched
-    actions = self.children[state]
-    if len(actions) == 1:
-      return actions[0]
+  # def puct_select(self, state: State): # batched
+  #   actions = self.children[state]
+  #   if len(actions) == 1:
+  #     return actions[0]
 
-    logprobs = self._batched_logprobs(state, actions)
-    q_values = torch.FloatTensor([self.Q[(state, a)] for a in actions]).to(self.device)
-    visits = torch.FloatTensor([self.N[(state, a)] for a in actions]).to(self.device)
-    assert logprobs.shape == q_values.shape == visits.shape
+  #   logprobs = self._batched_logprobs(state, actions)
+  #   q_values = torch.FloatTensor([self.Q[(state, a)] for a in actions]).to(self.device)
+  #   visits = torch.FloatTensor([self.N[(state, a)] for a in actions]).to(self.device)
+  #   assert logprobs.shape == q_values.shape == visits.shape
     
-    # puct score
-    sqrt_ns = math.sqrt(float(self.Ns[state]))
-    exploration = self.exploration_weight * torch.exp(logprobs) * (sqrt_ns / (visits + 1))
-    score = q_values + exploration
-    return actions[torch.argmax(score).item()]
+  #   # puct score
+  #   sqrt_ns = math.sqrt(float(self.Ns[state]))
+  #   exploration = self.exploration_weight * torch.exp(logprobs) * (sqrt_ns / (visits + 1))
+  #   score = q_values + exploration
+  #   return actions[torch.argmax(score).item()]
+ 
+  def sample_action(self, s: State) -> float:
+    """Sample action from policy prob dist"""
+    a = self.model.actor.get_action(s.to_tensor().to(self.device))
+    # TODO: clip to allowable action space
+    return a.item()
+
+  def search(self, s: State, d: int, is_root: bool = True, k_max: int = 10):
+    """Runs a MCTS simulation from state to depth d. Stores statstics and returns q, the value of the state"""
+    if d <= 0:
+      return self._value(s)
+
+    if is_root:
+      if s not in self.children or len(self.children[s]) < k_max:
+        # instead of random action sample from policy net
+        a = self.sample_action(s)
+        if a not in self.children[s]:
+          self.children[s].append(a)
+      else:
+        a = self.puct_select(s)
+    else:
+      m = self.k * self.Ns[s] ** self.alpha
+      if s not in self.children or len(self.children[s]) < m:
+        # here too
+        a = self.sample_action(s)
+        if a not in self.children[s]:
+          self.children[s].append(a)
+      else:
+        a = self.puct_select(s)                                   # selection
+    next_state, r = s.generate(a)                                 # expansion
+    q = r + self.gamma * self.search(next_state, d-1, False)      # simulation
+    self.N[(s,a)] += 1                                            # backpropagation
+    self.Q[(s,a)] += (q-self.Q[(s,a)])/self.N[(s,a)]
+    self.Ns[s] += 1
+    return q
