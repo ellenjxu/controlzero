@@ -51,6 +51,9 @@ class MCTS:
   def puct_select(self, s: State):
     return max(self.children[s], key=lambda a: self._puct(s, a))
 
+  def sample_action(self, s: State) -> float:
+    return s.sample_action()
+
   def search(self, s: State, d: int, is_root: bool = True, k_max: int = 10):
     """Runs a MCTS simulation from state to depth d. Stores statstics and returns q, the value of the state"""
     if d <= 0:
@@ -58,7 +61,7 @@ class MCTS:
 
     if is_root:
       if s not in self.children or len(self.children[s]) < k_max: # TODO: fixed number of children for root node
-        a = s.sample_action()
+        a = self.sample_action(s)
         if a not in self.children[s]:
           self.children[s].append(a)
       else:
@@ -66,7 +69,7 @@ class MCTS:
     else:      # If below threshold then choose new action (progressive widening), otw existing children
       m = self.k * self.Ns[s] ** self.alpha
       if s not in self.children or len(self.children[s]) < m:
-        a = s.sample_action()
+        a = self.sample_action(s)
         if a not in self.children[s]:
           self.children[s].append(a)
       else:
@@ -114,60 +117,6 @@ class A0CModel(MCTS):
       _, value = self.model(state.to_tensor().to(self.device))
     return value
 
-  # def _batched_logprobs(self, s: State, actions: list[np.ndarray]):
-  #   state_tensor = s.to_tensor().to(self.device) # gets broadcasted to match action_tensor in get_logprob
-  #   action_tensor = torch.FloatTensor(actions, device=self.device).unsqueeze(-1)
-  #   with torch.no_grad():
-  #     logprobs, _ = self.model.actor.get_logprob(state_tensor, action_tensor)
-  #   return logprobs
-
-  # def puct_select(self, state: State): # batched
-  #   actions = self.children[state]
-  #   if len(actions) == 1:
-  #     return actions[0]
-
-  #   logprobs = self._batched_logprobs(state, actions)
-  #   q_values = torch.FloatTensor([self.Q[(state, a)] for a in actions]).to(self.device)
-  #   visits = torch.FloatTensor([self.N[(state, a)] for a in actions]).to(self.device)
-  #   assert logprobs.shape == q_values.shape == visits.shape
-    
-  #   # puct score
-  #   sqrt_ns = math.sqrt(float(self.Ns[state]))
-  #   exploration = self.exploration_weight * torch.exp(logprobs) * (sqrt_ns / (visits + 1))
-  #   score = q_values + exploration
-  #   return actions[torch.argmax(score).item()]
- 
-  def sample_action(self, s: State) -> float:
-    """Sample action from policy prob dist"""
-    a = self.model.actor.get_action(s.to_tensor().to(self.device))
-    # TODO: clip to allowable action space
+  def sample_action(self, s: State) -> float: # instead of weighting by policy prob, sample from policy net{}
+    a = self.model.actor.get_action(s.to_tensor().to(self.device)) # TODO: clip to allowable action space
     return a.item()
-
-  def search(self, s: State, d: int, is_root: bool = True, k_max: int = 10):
-    """Runs a MCTS simulation from state to depth d. Stores statstics and returns q, the value of the state"""
-    if d <= 0:
-      return self._value(s)
-
-    if is_root:
-      if s not in self.children or len(self.children[s]) < k_max:
-        # instead of random action sample from policy net
-        a = self.sample_action(s)
-        if a not in self.children[s]:
-          self.children[s].append(a)
-      else:
-        a = self.puct_select(s)
-    else:
-      m = self.k * self.Ns[s] ** self.alpha
-      if s not in self.children or len(self.children[s]) < m:
-        # here too
-        a = self.sample_action(s)
-        if a not in self.children[s]:
-          self.children[s].append(a)
-      else:
-        a = self.puct_select(s)                                   # selection
-    next_state, r = s.generate(a)                                 # expansion
-    q = r + self.gamma * self.search(next_state, d-1, False)      # simulation
-    self.N[(s,a)] += 1                                            # backpropagation
-    self.Q[(s,a)] += (q-self.Q[(s,a)])/self.N[(s,a)]
-    self.Ns[s] += 1
-    return q
