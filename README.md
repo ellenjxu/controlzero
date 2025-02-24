@@ -12,6 +12,8 @@ Training takes ~6 min on my laptop running parallelized MCTS over 3M simulation 
 
 <img src="https://github.com/user-attachments/assets/66961a05-b9bc-4502-b3a0-ffde95c19417" alt="image" width="500">
 
+Average rollout reward is ~ -7.11 for vanilla MCTS, vs -3.741 with A0C (guiding with value and actor net helps!).
+
 ## How to use
 
 To train AlphaZero Continuous, evaluate the learned policy, and generate plots:
