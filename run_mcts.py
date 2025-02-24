@@ -4,7 +4,7 @@ import argparse
 import numpy as np
 import gymnasium as gym
 import gym_cartlataccel
-from networks.mcts import MCTS, State
+from networks.mcts import MCTS
 from utils.cartstate import CartState
 
 def run_mcts(mcts, env, max_steps, search_depth, n_sims, seed=42, deterministic=False):
@@ -12,7 +12,7 @@ def run_mcts(mcts, env, max_steps, search_depth, n_sims, seed=42, deterministic=
   total_reward = 0
   for step in range(max_steps):
     s = CartState.from_array(state)
-    action, _ = mcts.get_action(s, search_depth, n_sims, deterministic=deterministic)
+    action = mcts.get_action(s, search_depth, n_sims, deterministic=deterministic)
     next_state, reward, terminated, truncated, _ = env.step(np.array([action])) # env expects batched
     # print(state, action, reward)
     total_reward += reward

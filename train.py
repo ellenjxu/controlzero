@@ -216,7 +216,6 @@ if __name__ == "__main__":
   print(f"Training A0C with max_iters {args.max_iters} and {args.noise_mode} noise")
   
   env = gym.make("CartLatAccel-v1", noise_mode=args.noise_mode, env_bs=args.env_bs)
-  # TODO: use beta dist , act_bound=(-1, 1)
   model = ActorCritic(env.observation_space.shape[-1], {"pi": [32], "vf": [32]}, env.action_space.shape[-1])
   
   a0c = A0C(env, model, env_bs=args.env_bs, debug=args.debug, n_trees=args.n_trees, noise_mode=args.noise_mode)
