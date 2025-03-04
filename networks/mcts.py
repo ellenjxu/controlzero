@@ -26,12 +26,6 @@ class Node:
       return False
     return self._hashable == other._hashable
 
-  def to_tensor(self, device='cpu') -> torch.Tensor:
-    """Convert value to tensor for neural network input"""
-    if isinstance(self.value, torch.Tensor):
-      return self.value.to(device)
-    return torch.FloatTensor(self._hashable).to(device)
-
 class MCTS:
   def __init__(self, exploration_weight=1e-2, gamma=0.99, k=1, alpha=0.5): # TODO: exploration weight. c_puct = 0.05
     self.gamma = gamma
@@ -80,7 +74,8 @@ class MCTS:
     else:      
       # TODO: add back progressive widening. The issue that there is a variable number of children for each node
       # m = self.k * self.Ns[s] ** self.alpha # progressive widening factor: when to explore new actions
-      if s not in self.children or len(self.children[s]) < k_max:
+      m = self.k * (self.Ns[s] ** self.alpha)  # Progressive widening factor
+      if s not in self.children or len(self.children[s]) < min(k_max, math.ceil(m)):
         # now sampling action from env
         a = self.sample_action(env, s)
         a = Node(a)
@@ -138,12 +133,15 @@ class A0CModel(MCTS):
     self.model = model # f_theta(s) -> pi(s), V(s)
     self.device = device
 
-  def _value(self, state): # override methods to use NN
+  def _value(self, state: Node): # override methods to use NN
     with torch.no_grad():
-      _, value = self.model(state.to_tensor().to(self.device))
-    return value
+      state_tensor = torch.FloatTensor(state.value).to(self.device)
+      _, value = self.model(state_tensor)
+    return value.item()
 
   def sample_action(self, env, s: Node = None) -> float:
     """Sample an action using the policy network"""
-    a = self.model.actor.get_action(s.to_tensor().to(self.device)) # a is a float
+    state_tensor = torch.FloatTensor(s.value).to(self.device)
+    a = self.model.actor.get_action(state_tensor) # a is a float
+    # a = np.clip(a, env.action_space.low, env.action_space.high)
     return a.item()

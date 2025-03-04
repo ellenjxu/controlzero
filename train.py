@@ -150,6 +150,7 @@ class A0C:
 
     # print(torch.FloatTensor(all_states).shape)
     # print(torch.FloatTensor(all_mcts_actions).shape)
+    # print(torch.FloatTensor(all_mcts_states).shape)
 
     episode_dict = TensorDict({
       "states": torch.FloatTensor(all_states).to(self.device),
