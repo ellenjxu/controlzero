@@ -4,17 +4,16 @@ import argparse
 import numpy as np
 import gymnasium as gym
 import gym_cartlataccel
-from networks.mcts import MCTS
-from utils.cartstate import CartState
+from networks.mcts import MCTS, Node
 
 def run_mcts(mcts, env, max_steps, search_depth, n_sims, seed=42, deterministic=False):
   state, _ = env.reset(seed=seed)
   total_reward = 0
   for step in range(max_steps):
-    s = CartState.from_array(state)
-    action = mcts.get_action(s, search_depth, n_sims, deterministic=deterministic)
+    s = Node(state)
+    action = mcts.get_action(env, s, search_depth, n_sims, deterministic=deterministic)
     next_state, reward, terminated, truncated, _ = env.step(np.array([action])) # env expects batched
-    # print(state, action, reward)
+    # print("step", step, "action", action, "reward", reward)
     total_reward += reward
     state = next_state
     if truncated:
@@ -26,7 +25,7 @@ if __name__ == "__main__":
   parser.add_argument("--noise_mode", type=str, default="None")
   parser.add_argument("--search_depth", type=int, default=10)
   parser.add_argument("--n_sims", type=int, default=100)
-  parser.add_argument("--render", type=str, default="human")
+  parser.add_argument("--render", type=str, default="None")
   parser.add_argument("--seed", type=int, default=42)
   args = parser.parse_args()
 

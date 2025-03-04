@@ -15,9 +15,8 @@ import matplotlib.pyplot as plt
 from torchrl.data import ReplayBuffer, LazyTensorStorage
 from tensordict import TensorDict
 
-from networks.mcts import MCTS, A0CModel
+from networks.mcts import MCTS, A0CModel, Node
 from networks.agent import ActorCritic
-from utils.cartstate import CartState
 from utils.helpers import sample_rollout, plot_losses, RunningStats
 
 import warnings
@@ -49,9 +48,9 @@ def mcts_worker(env_params, model_params, seed, max_steps=1000):
   state, _ = env.reset()
 
   for _ in range(max_steps):
-    s = CartState.from_array(state)
-    action = mcts.get_action(s, d=10, n=100, deterministic=True) # TODO: cleanup into A0C params
-    next_state, reward, terminated, truncated, info = env.step(np.array([[action]]))
+    s = Node(state)
+    action = mcts.get_action(env, s, d=10, n=100, deterministic=True) # TODO: cleanup into A0C params
+    next_state, reward, terminated, truncated, info = env.step(np.array([action]))
     states.append(state)
 
     actions, norm_counts, max_q = mcts.get_policy(s)
