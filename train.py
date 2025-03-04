@@ -49,11 +49,14 @@ def mcts_worker(env_params, model_params, seed, max_steps=1000):
 
   for _ in range(max_steps):
     s = Node(state)
+    # get action from mcts simulation
     action = mcts.get_action(env, s, d=10, n=100, deterministic=True) # TODO: cleanup into A0C params
     next_state, reward, terminated, truncated, info = env.step(np.array([action]))
     states.append(state)
 
+    # get policy statistics
     actions, norm_counts, max_q = mcts.get_policy(s)
+    actions = np.array([a.value for a in actions])  # convert back to float
     mcts_counts.append(norm_counts)
     mcts_actions.append(actions)
     mcts_states.append([state]*len(actions))
@@ -64,7 +67,7 @@ def mcts_worker(env_params, model_params, seed, max_steps=1000):
       state, _ = env.reset()
       mcts.reset()
   
-  return (states, returns, mcts_states, mcts_actions, mcts_counts)
+  return states, returns, mcts_states, mcts_actions, mcts_counts
 
 class A0C:
   def __init__(self, env, model, tau=1, lr=1e-1, epochs=10, bs=512, ent_coeff=0.01, env_bs=1, device='cpu', debug=False, n_trees=None, noise_mode=None):
@@ -144,7 +147,10 @@ class A0C:
       all_mcts_states.extend(mcts_states)
       all_mcts_actions.extend(mcts_actions)
       all_mcts_counts.extend(mcts_counts)
-    
+
+    # print(torch.FloatTensor(all_states).shape)
+    # print(torch.FloatTensor(all_mcts_actions).shape)
+
     episode_dict = TensorDict({
       "states": torch.FloatTensor(all_states).to(self.device),
       "returns": torch.FloatTensor(all_returns).to(self.device),

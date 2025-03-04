@@ -78,8 +78,9 @@ class MCTS:
       else:
         a = self.puct_select(s)
     else:      
-      m = self.k * self.Ns[s] ** self.alpha # progressive widening factor: when to explore new actions
-      if s not in self.children or len(self.children[s]) < m:
+      # TODO: add back progressive widening. The issue that there is a variable number of children for each node
+      # m = self.k * self.Ns[s] ** self.alpha # progressive widening factor: when to explore new actions
+      if s not in self.children or len(self.children[s]) < k_max:
         # now sampling action from env
         a = self.sample_action(env, s)
         a = Node(a)
@@ -104,6 +105,7 @@ class MCTS:
   def get_policy(self, s: Node):
     """MCTS policy as mapping actions to counts, max Q values"""
     actions = self.children[s]
+    # print("number of actions should be 10", len(actions))
     visit_counts = np.array([self.N[(s,a)] for a in actions])
     # print("visit counts", visit_counts)
     norm_counts = visit_counts / visit_counts.sum()
@@ -111,7 +113,7 @@ class MCTS:
     max_q = max(q_values) if q_values else 0
     return actions, norm_counts, max_q
 
-  def get_action(self, env, s: Node, d: int, n: int, deterministic: bool=False):
+  def get_action(self, env, s: Node, d: int, n: int, deterministic: bool=False) -> float:
     """Choose the best action from current state."""
     # pass in env, for each rollout reset env to initial state
     # replaces s.generate()
