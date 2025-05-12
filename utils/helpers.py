@@ -1,4 +1,4 @@
-import math
+import numpy
 import torch
 import matplotlib.pyplot as plt
 
@@ -81,5 +81,5 @@ class RunningStats:
     return self.new_s / (self.n - 1) if self.n > 1 else 0.0
 
   def standard_deviation(self):
-    return math.sqrt(self.variance())
+    return np.sqrt(self.variance())
     
